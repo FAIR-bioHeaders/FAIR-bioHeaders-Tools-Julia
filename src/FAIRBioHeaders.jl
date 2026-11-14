@@ -43,6 +43,7 @@ include("reader.jl")
 include("gzip.jl")
 include("contracts.jl")
 include("verify.jl")
+include("audit.jl")
 include("conformance.jl")
 
 export
@@ -56,6 +57,8 @@ export
     # contracts
     bundled_contracts, select_contract, parse_citation, validate_record, contract_validator,
     UnsupportedContract, supported, v6_warning, link_scheme_warnings,
+    # bundle audit
+    audit_bundled_schemas,
     # files and the shared vectors
     verify_file, VerifyResult, run_conformance, summarise, VectorOutcome,
     implemented_rules, runnable_formats
