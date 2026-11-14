@@ -15,7 +15,8 @@ to a PR here.
 
 ## Setup and checks
 
-From this checkout (Julia 1.10+; CI runs 1.10 and 1.x):
+From this checkout (Julia 1.12+; CI runs 1.12 and 1.x — the SHA-512/256 stdlib API
+exists from 1.12, see `docs/CAPABILITY.md`):
 
 ```sh
 julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
