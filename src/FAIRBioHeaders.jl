@@ -12,6 +12,9 @@ What is native here and what is delegated:
 * the checksum and the header byte rules are Julia standard library only (`SHA`'s
   `SHA2_512_256_CTX` plus `Base64`) — see `docs/CAPABILITY.md` for the digest-equality
   measurement against the released Python toolkit;
+* gzip and BGZF input is decompressed before hashing (rule R1 hashes the decompressed bytes)
+  through `CodecZlib`, the package's only compiled-dependency boundary; `src/gzip.jl` isolates
+  it and `docs/CAPABILITY.md` records the measurement that decides it;
 * the metadata block is read by this package's own strict reader (`src/reader.jl`), because
   the Julia `YAML` package diverges from rules R8, R12 and R13 and from the family's folding
   behaviour, also recorded in `docs/CAPABILITY.md`;
@@ -37,6 +40,7 @@ using SHA
 
 include("checksum.jl")
 include("reader.jl")
+include("gzip.jl")
 include("contracts.jl")
 include("verify.jl")
 include("conformance.jl")
@@ -44,6 +48,8 @@ include("conformance.jl")
 export
     # byte layer
     scan_lines, header_checksum, checksum_value, header_block, checksum_line, PREFIX, kind_of,
+    # gzip / BGZF input (rule R1: the digest covers the decompressed bytes)
+    is_gzip, decompress_gzip, read_file_bytes,
     # metadata
     read_fhr_header, read_fhr_file, FHRHeader, metadata_of, HeaderError,
     portable_plain_tag, yaml11_tag, yaml12_tag, unescape_double, fold_lines,

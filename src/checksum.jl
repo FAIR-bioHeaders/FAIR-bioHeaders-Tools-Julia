@@ -169,7 +169,8 @@ function header_checksum(data::Vector{UInt8}, kind::AbstractString)
             header = indices, late = late, lines = lines)
 end
 
-header_checksum(path::AbstractString, kind::AbstractString) = header_checksum(read(path), kind)
+header_checksum(path::AbstractString, kind::AbstractString) =
+    header_checksum(read_file_bytes(path), kind)
 
 """
     check_header_encoding(data, lines, indices)
