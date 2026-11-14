@@ -1,0 +1,88 @@
+{
+  "description": "Contract copies bundled with FAIRBioHeaders.jl, by FAIR-bioHeaders-Specification release (docs/SCHEMA-VERSIONS.md). 'main' holds the current copies that a raw-main citation selects (rule V1); each other entry is a frozen copy of that release's schema (rules V2 and V3). Every path is relative to this directory; every file is recorded with its SHA-256, git blob and source tag in provenance.json. FHT and FHGM have no released contract (rule V7), so they appear nowhere in this registry, no draft schema is bundled, and a citation of either falls to rule V5.",
+  "registryVersion": 1,
+  "specification": "FAIR-bioHeaders-Specification",
+  "current": "main",
+  "files": {
+    "main": {
+      "FHR": "current/fhr.json",
+      "FHP": "current/fhp.json",
+      "FHGFF3": "current/fhgff3.json"
+    },
+    "v0.3.0": {
+      "FHR": "v0.3.0/fhr.json"
+    },
+    "v0.3.1": {
+      "FHR": "v0.3.1/fhr.json"
+    },
+    "v0.4.0": {
+      "FHR": "v0.4.0/fhr.json",
+      "FHP": "v0.4.0/fhp.json",
+      "FHGFF3": "v0.4.0/fhgff3.json"
+    },
+    "v0.4.1": {
+      "FHR": "v0.4.1/fhr.json",
+      "FHP": "v0.4.1/fhp.json",
+      "FHGFF3": "v0.4.1/fhgff3.json"
+    },
+    "v0.4.2": {
+      "FHR": "v0.4.2/fhr.json",
+      "FHP": "v0.4.2/fhp.json",
+      "FHGFF3": "v0.4.2/fhgff3.json"
+    },
+    "v0.5.0": {
+      "FHR": "v0.5.0/fhr.json",
+      "FHP": "v0.5.0/fhp.json",
+      "FHGFF3": "v0.5.0/fhgff3.json"
+    },
+    "v0.6.0": {
+      "FHR": "v0.6.0/fhr.json",
+      "FHP": "v0.6.0/fhp.json",
+      "FHGFF3": "v0.6.0/fhgff3.json"
+    }
+  },
+  "schemaVersions": {
+    "v0.3.0": {
+      "FHR": "1"
+    },
+    "v0.3.1": {
+      "FHR": "1"
+    },
+    "v0.4.0": {
+      "FHR": "2.0",
+      "FHP": "1.0",
+      "FHGFF3": "1.0"
+    },
+    "v0.4.1": {
+      "FHR": "2.0",
+      "FHP": "1.0",
+      "FHGFF3": "1.0"
+    },
+    "v0.4.2": {
+      "FHR": "2.0",
+      "FHP": "1.0",
+      "FHGFF3": "1.0"
+    },
+    "v0.5.0": {
+      "FHR": "2.1",
+      "FHP": "1.1",
+      "FHGFF3": "1.1"
+    },
+    "v0.6.0": {
+      "FHR": "2.1",
+      "FHP": "1.2",
+      "FHGFF3": "1.2"
+    }
+  },
+  "supported": {
+    "FHR": ["main (v0.6.0)", "v0.3.0", "v0.3.1", "v0.4.0", "v0.4.1", "v0.4.2", "v0.5.0", "v0.6.0"],
+    "FHP": ["main (v0.6.0)", "v0.4.0", "v0.4.1", "v0.4.2", "v0.5.0", "v0.6.0"],
+    "FHGFF3": ["main (v0.6.0)", "v0.4.0", "v0.4.1", "v0.4.2", "v0.5.0", "v0.6.0"]
+  },
+  "fhr1": {
+    "rule": "V6",
+    "release": "v0.3.1",
+    "url": "https://w3id.org/fair-bioheaders/fhr/v0.3.1",
+    "note": "The last FHR 1 contract. A record citing raw-main fhr.json with schemaVersion the number 1 is read against this copy and warned about as deprecated, not invalid."
+  }
+}
