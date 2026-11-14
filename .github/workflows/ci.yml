@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        julia-version: ['1.10', '1']
+    steps:
+      - uses: actions/checkout@v4
+
+      # The acceptance vectors come from the specification at a RELEASED TAG,
+      # never main (shared family rule).
+      - name: Check out FAIR-bioHeaders-Specification v0.6.0
+        uses: actions/checkout@v4
+        with:
+          repository: FAIR-bioHeaders/FAIR-bioHeaders-Specification
+          ref: v0.6.0
+          path: .spec-v0.6.0
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia-version }}
+
+      - uses: julia-actions/cache@v2
+
+      - name: Instantiate
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+
+      - name: Bundled-schema provenance audit
+        run: python3 scripts/check_bundled_schemas.py
+
+      - name: Test (rule tests + shared conformance vectors)
+        env:
+          FAIRBIOHEADERS_CONFORMANCE: ${{ github.workspace }}/.spec-v0.6.0/conformance
+        run: julia --project=. -e 'using Pkg; Pkg.test(; coverage = true)'

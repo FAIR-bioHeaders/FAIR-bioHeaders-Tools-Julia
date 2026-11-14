@@ -1,0 +1,200 @@
+{
+  "files": {
+    "current/fhgff3.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHGFF3",
+      "ref": "main",
+      "release": null,
+      "sha256": "1942be4cefc8b3a2537942c2252b45fbcef87a5532486e4fd0f5d4c540e0fbf9",
+      "sourceGitBlob": "798f00201ec3d655ad51cc3138459237ca92363c",
+      "sourcePath": "fhgff3.json"
+    },
+    "current/fhp.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHP",
+      "ref": "main",
+      "release": null,
+      "sha256": "92a0b3cbcfe69939ebfaac69f0c5958ce426c005873efe8d3e3eb0fc0dab6de5",
+      "sourceGitBlob": "76edb77847e5cdc089803df429cde35c5d5bc3a3",
+      "sourcePath": "fhp.json"
+    },
+    "current/fhr.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHR",
+      "ref": "main",
+      "release": null,
+      "sha256": "694ab5afaf8c3743eacf9e2aacb5551f7cbe37073b6f4afc3ae4a65b47f9d4df",
+      "sourceGitBlob": "c3ef475e84e21a664b0476be39507208e6d9753c",
+      "sourcePath": "fhr.json"
+    },
+    "v0.3.0/fhr.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHR",
+      "release": "v0.3.0",
+      "schemaVersion": null,
+      "sha256": "e3d3843e1a1646e12495ccc9a615df94b7abe71b833c5f336c59444e0a49620a",
+      "sourceGitBlob": "3273f5a2104f1a6d0ef7966353b9e2f34b03e7a4",
+      "sourcePath": "fhr.json"
+    },
+    "v0.3.1/fhr.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHR",
+      "release": "v0.3.1",
+      "schemaVersion": null,
+      "sha256": "e3d3843e1a1646e12495ccc9a615df94b7abe71b833c5f336c59444e0a49620a",
+      "sourceGitBlob": "3273f5a2104f1a6d0ef7966353b9e2f34b03e7a4",
+      "sourcePath": "fhr.json"
+    },
+    "v0.4.0/fhgff3.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHGFF3",
+      "release": "v0.4.0",
+      "schemaVersion": "1.0",
+      "sha256": "f89635f252f6e204944de99e6c40bad1b0c9b37af5108fce05ee63f6dfd40bbd",
+      "sourceGitBlob": "c95ea736fd4b2f06354ef792d08af2ae1964d2ce",
+      "sourcePath": "fhgff3.json"
+    },
+    "v0.4.0/fhp.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHP",
+      "release": "v0.4.0",
+      "schemaVersion": "1.0",
+      "sha256": "e3f8f45260b833f931644e87ff7530cb9b4151e67094023dd96edde9a1d90366",
+      "sourceGitBlob": "1827cfa82917116710e04eb37465400ba8fe7541",
+      "sourcePath": "fhp.json"
+    },
+    "v0.4.0/fhr.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHR",
+      "release": "v0.4.0",
+      "schemaVersion": "2.0",
+      "sha256": "168a60467e3651dfdfe9855747f38257d5889bfcce6ec8661d9a378762a362dd",
+      "sourceGitBlob": "148779b224a74d4dee19a5160cc65e5ab415a781",
+      "sourcePath": "fhr.json"
+    },
+    "v0.4.1/fhgff3.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHGFF3",
+      "release": "v0.4.1",
+      "schemaVersion": "1.0",
+      "sha256": "f89635f252f6e204944de99e6c40bad1b0c9b37af5108fce05ee63f6dfd40bbd",
+      "sourceGitBlob": "c95ea736fd4b2f06354ef792d08af2ae1964d2ce",
+      "sourcePath": "fhgff3.json"
+    },
+    "v0.4.1/fhp.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHP",
+      "release": "v0.4.1",
+      "schemaVersion": "1.0",
+      "sha256": "e3f8f45260b833f931644e87ff7530cb9b4151e67094023dd96edde9a1d90366",
+      "sourceGitBlob": "1827cfa82917116710e04eb37465400ba8fe7541",
+      "sourcePath": "fhp.json"
+    },
+    "v0.4.1/fhr.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHR",
+      "release": "v0.4.1",
+      "schemaVersion": "2.0",
+      "sha256": "168a60467e3651dfdfe9855747f38257d5889bfcce6ec8661d9a378762a362dd",
+      "sourceGitBlob": "148779b224a74d4dee19a5160cc65e5ab415a781",
+      "sourcePath": "fhr.json"
+    },
+    "v0.4.2/fhgff3.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHGFF3",
+      "release": "v0.4.2",
+      "schemaVersion": "1.0",
+      "sha256": "f89635f252f6e204944de99e6c40bad1b0c9b37af5108fce05ee63f6dfd40bbd",
+      "sourceGitBlob": "c95ea736fd4b2f06354ef792d08af2ae1964d2ce",
+      "sourcePath": "fhgff3.json"
+    },
+    "v0.4.2/fhp.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHP",
+      "release": "v0.4.2",
+      "schemaVersion": "1.0",
+      "sha256": "e3f8f45260b833f931644e87ff7530cb9b4151e67094023dd96edde9a1d90366",
+      "sourceGitBlob": "1827cfa82917116710e04eb37465400ba8fe7541",
+      "sourcePath": "fhp.json"
+    },
+    "v0.4.2/fhr.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHR",
+      "release": "v0.4.2",
+      "schemaVersion": "2.0",
+      "sha256": "168a60467e3651dfdfe9855747f38257d5889bfcce6ec8661d9a378762a362dd",
+      "sourceGitBlob": "148779b224a74d4dee19a5160cc65e5ab415a781",
+      "sourcePath": "fhr.json"
+    },
+    "v0.5.0/fhgff3.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHGFF3",
+      "release": "v0.5.0",
+      "schemaVersion": "1.0",
+      "sha256": "20ce320f5d706f11ed21cdece4dfb56e3568b50be126e25b4016f46f2e8e416c",
+      "sourceGitBlob": "9676d669710d1f0a79705b6767da790a5f43a8c3",
+      "sourcePath": "fhgff3.json"
+    },
+    "v0.5.0/fhp.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHP",
+      "release": "v0.5.0",
+      "schemaVersion": "1.0",
+      "sha256": "2409739d4a223164ca368f93afa78c8f1e3809fb04ec46cc9a793cc5aaaba427",
+      "sourceGitBlob": "e5e9808b9695929013e89db0fe73c053c7644233",
+      "sourcePath": "fhp.json"
+    },
+    "v0.5.0/fhr.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHR",
+      "release": "v0.5.0",
+      "schemaVersion": "2.0",
+      "sha256": "694ab5afaf8c3743eacf9e2aacb5551f7cbe37073b6f4afc3ae4a65b47f9d4df",
+      "sourceGitBlob": "c3ef475e84e21a664b0476be39507208e6d9753c",
+      "sourcePath": "fhr.json"
+    },
+    "v0.6.0/fhgff3.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHGFF3",
+      "release": "v0.6.0",
+      "schemaVersion": "1.0",
+      "sha256": "1942be4cefc8b3a2537942c2252b45fbcef87a5532486e4fd0f5d4c540e0fbf9",
+      "sourceGitBlob": "798f00201ec3d655ad51cc3138459237ca92363c",
+      "sourcePath": "fhgff3.json"
+    },
+    "v0.6.0/fhp.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHP",
+      "release": "v0.6.0",
+      "schemaVersion": "1.0",
+      "sha256": "92a0b3cbcfe69939ebfaac69f0c5958ce426c005873efe8d3e3eb0fc0dab6de5",
+      "sourceGitBlob": "76edb77847e5cdc089803df429cde35c5d5bc3a3",
+      "sourcePath": "fhp.json"
+    },
+    "v0.6.0/fhr.json": {
+      "declaredDialect": "https://json-schema.org/draft/2020-12/schema",
+      "headerType": "FHR",
+      "release": "v0.6.0",
+      "schemaVersion": "2.0",
+      "sha256": "694ab5afaf8c3743eacf9e2aacb5551f7cbe37073b6f4afc3ae4a65b47f9d4df",
+      "sourceGitBlob": "c3ef475e84e21a664b0476be39507208e6d9753c",
+      "sourcePath": "fhr.json"
+    }
+  },
+  "licenseFile": "LICENSE.FAIR-bioHeaders-Specification",
+  "licenseFileSha256": "9346a23c75a2b8da1012b8bd173b1bd802a49cca53e318a6e3d9f49aaf703717",
+  "mainCommit": "a60bc02ad94c364e4bff30d43561c60663d72beb",
+  "note": "Byte-for-byte copies of the published FAIR-bioHeaders validation contracts, vendored so that a reader can apply schema-selection rules V1-V6 offline. Every copy was taken from the named tag of FAIR-bioHeaders-Specification with `git show <tag>:<file>` and is recorded here by SHA-256 and git blob id; re-verify before refreshing, and refresh only as a coordinated release action. The copies are not relicensed by this repository: they keep the terms recorded in LICENSE.FAIR-bioHeaders-Specification.",
+  "sourceRepository": "https://github.com/FAIR-bioHeaders/FAIR-bioHeaders-Specification",
+  "tagCommits": {
+    "v0.3.0": "0144786399ce69bf857a4409f6e92164a17b9d1f",
+    "v0.3.1": "1b556a0db20c9873a5d6f58302b020e09e3a9307",
+    "v0.4.0": "6d5b50c56f85d302de2debb8b5eb41a2608e33d9",
+    "v0.4.1": "1dab0fe67ec0bc9f648fb1e1ba8749e40dfdbb97",
+    "v0.4.2": "1c2be29a0a224bd091ff44f0d32468b23157e970",
+    "v0.5.0": "7150f74cf447de5694b8938c705d5a5896eaeacd",
+    "v0.6.0": "ab7e3ddd53bfccee9a31d59fc10524eadf32c1da"
+  },
+  "vendored": "2026-11-14",
+  "versionsRegistryFile": "versions.json"
+}

@@ -1,0 +1,51 @@
+# FAIR-bioHeaders-Tools-Julia (FAIRBioHeaders.jl)
+
+> Julia reader and verifier for FAIR-bioHeaders metadata headers (FHR reference-genome
+> FASTA/GFA, FHP protein FASTA, FHGFF3 GFF3 annotation). Headers are YAML blocks inside
+> the data file (`;~` in FASTA, `#~` in GFA/GFF3), validated against the per-type JSON
+> Schema contracts and covered by a SHA-512/256 checksum of the file's exact bytes. The
+> rules and contracts belong to FAIR-bioHeaders-Specification; header *writing* belongs
+> to the Python toolkit `fair-bioheaders`. This package only reads and verifies.
+
+Key facts (against FAIR-bioHeaders-Specification release v0.6.0, bundled byte-for-byte
+under `schemas/` with SHA-256 provenance — contract versions FHR `schemaVersion: '2.1'`,
+FHP `'1.2'`, FHGFF3 `'1.2'`):
+
+- Status: development only. Not in the Julia General registry, no release tag. Do not
+  claim or describe a published Julia package.
+- FHT and FHGM have no released contract (rule V7): no `schemaVersion`, no w3id URL, no
+  bundled schema, no support claim. A citation of either is treated like any unknown
+  `schema` value under rule V5 (read as current FHR).
+- The digest is Julia stdlib `SHA` (`SHA2_512_256_CTX` + padded base64, rule R4) and is
+  byte-equal to the released Python toolkit's `hashlib` digest; the measurement and the
+  validator-selection study are in `docs/CAPABILITY.md`.
+- Contract validation uses `CorvusJsonSchema` with `assert_format = true`, because the
+  contracts declare JSON Schema **draft/2020-12** and `format: date`/`format: uri` must
+  bind. `JSONSchema.jl` 1.6.0 was measured unsuitable (silently ignores `format`;
+  falsely rejects the legal FHGFF3 `annotates` genome link).
+- The YAML metadata block is read by this package's own strict reader: YAML.jl accepts
+  duplicate keys, anchors/aliases, merge keys and explicit tags (all invalid under rule
+  R8/R12), type-resolves scalars that YAML 1.1 and 1.2 disagree on (rule R12) and folds
+  multi-line plain scalars differently from every other family reader.
+
+```julia
+import Pkg; Pkg.add(url = "https://github.com/FAIR-bioHeaders/FAIR-bioHeaders-Tools-Julia")
+using FAIRBioHeaders
+r = verify_file("genome.fhr.fasta")   # bytes + header rules + contract, per-rule findings
+r.ok; r.stated; r.computed; r.errors; r.warnings; r.not_checked
+```
+
+API: `verify_file`, `read_fhr_file`, `read_fhr_header`, `header_checksum`,
+`validate_record`, `select_contract`, `parse_citation`, `bundled_contracts`,
+`link_scheme_warnings`, `run_conformance`, `summarise`.
+
+Acceptance is the shared conformance suite of FAIR-bioHeaders-Specification (291 vectors
+at tag v0.6.0), never a Julia-only suite. The 26 microdata and 37 JSON-LD vectors and the
+11 compressed (gzip/BGZF) vectors are reported undecided by this reader with their
+reasons — see `docs/CONFORMANCE.md`.
+
+## See also
+
+- Specification, rules and released schemas: https://github.com/FAIR-bioHeaders/FAIR-bioHeaders-Specification (its `llms.txt` is the family-wide entry point)
+- Reference toolkit (writes headers and checksums): https://github.com/FAIR-bioHeaders/FAIR-bioHeaders-Tools
+- Local: `README.md`, `docs/CAPABILITY.md`, `docs/CONFORMANCE.md`, `AGENTS.md`, `LICENSE`

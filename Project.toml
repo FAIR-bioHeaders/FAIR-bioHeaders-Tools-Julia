@@ -1,0 +1,26 @@
+name = "FAIRBioHeaders"
+uuid = "f3408912-9baf-4073-ad3f-ef1cab950432"
+authors = ["FAIR-bioHeaders contributors"]
+version = "0.1.0"
+license = "MPL-2.0"
+desc = "Read and verify FAIR-bioHeaders (FHR, FHP, FHGFF3) metadata in Julia"
+keywords = ["bioinformatics", "metadata", "provenance", "fasta", "gff3"]
+
+[deps]
+Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+CorvusJsonSchema = "7b662be2-3602-4bf9-b859-13b2e88448f1"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+
+[compat]
+Base64 = "1"
+CorvusJsonSchema = "0.1"
+JSON = "1"
+SHA = "0.7, 1"
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
