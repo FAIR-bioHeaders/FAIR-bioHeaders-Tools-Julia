@@ -5,13 +5,23 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  # Primary acceptance: the released contracts, read natively. No Python, no pip, no
+  # reference toolkit anywhere in this job - the only inputs are the Julia runtime, this
+  # repository, its registered package dependencies and a read-only checkout of the
+  # specification's language-neutral conformance data at the released tag. The bundled-
+  # schema audit that used to be a python3 step now runs inside Pkg.test (src/audit.jl).
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         julia-version: ['1.12', '1']
+    env:
+      RECEIPT: ${{ github.workspace }}/receipt-test.properties
     steps:
       - uses: actions/checkout@v4
 
@@ -30,13 +40,122 @@ jobs:
 
       - uses: julia-actions/cache@v2
 
+      - name: Assert the acceptance path is native
+        run: |
+          # This job's acceptance path is Julia only: the runtime, this repository's
+          # sources, registered Julia packages and language-neutral vector data. The
+          # check is that nothing in the build or the tests can invoke another
+          # implementation: no Python bridge, no subprocess runner in src/ or the test
+          # entry point, no foreign project file in the tree that a test could reach
+          # for, and no foreign interpreter invoked by any step of this job.
+          # scripts/ is excluded: it holds the supplemental differential, which runs
+          # only in its own labelled job and gates nothing.
+          set -e
+          if grep -rnE "PyCall|PythonCall|pyimport|CondaPkg|ccall.*libpython|readprocess|Base\.spawn|\brun *\\(" src/ test/runtests.jl ; then
+            echo "^ native acceptance must not shell out to, embed or load another implementation" >&2
+            exit 1
+          fi
+          for f in requirements.txt pyproject.toml setup.py environment.yml Pipfile package.json pom.xml build.gradle Cargo.toml DESCRIPTION go.mod; do
+            if [ -e "$f" ]; then
+              echo "unexpected foreign project file in a Julia library: $f" >&2
+              exit 1
+            fi
+          done
+          if awk '/^  test:/,/^  differential:/' .github/workflows/ci.yml \
+             | grep -nE "^\s*(uses|run):.*(python|pip|conda)" ; then
+            echo "^ the primary job must not invoke a foreign interpreter; the differential job is separate" >&2
+            exit 1
+          fi
+          echo "no interpreter bridge, no foreign project files, no foreign interpreter step in the primary job"
+
       - name: Instantiate
         run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
 
-      - name: Bundled-schema provenance audit
-        run: python3 scripts/check_bundled_schemas.py
-
-      - name: Test (rule tests + shared conformance vectors)
+      - name: Test (rule tests + native bundle audit + shared conformance vectors)
         env:
           FAIRBIOHEADERS_CONFORMANCE: ${{ github.workspace }}/.spec-v0.6.0/conformance
-        run: julia --project=. -e 'using Pkg; Pkg.test(; coverage = true)'
+          FAIRBIOHEADERS_RECEIPT: ${{ env.RECEIPT }}
+        run: |
+          set -o pipefail
+          julia --project=. -e 'using Pkg; Pkg.test(; coverage = true)' 2>&1 | tee test-output.log
+
+      - name: Assert the acceptance receipt says the vectors actually ran
+        run: |
+          # A green build is not acceptance on its own: the receipt written by the test
+          # run states the counts, and the run is only accepted when every number is
+          # the declared one. Missing receipt = the suite crashed or the writer is gone.
+          set -e
+          receipt=${RECEIPT:?}
+          if [ ! -s "$receipt" ]; then
+            echo "missing $receipt - Pkg.test did not complete" >&2
+            exit 1
+          fi
+          cat "$receipt"
+          for pair in conformanceSuiteUsed=true suiteVectors=291 vectorsDecided=228 \
+                      vectorsPassed=228 vectorsFailed=0 vectorsUndecided=63 \
+                      compressedVectorsDecided=11 jsonldUndecided=37 microdataUndecided=26 \
+                      schemaAuditFindings=0 assertionsFailed=0 assertionsErrored=0 \
+                      assertionsBroken=0 assertionsOther=0; do
+            key=${pair%%=*}; want=${pair##*=}
+            got=$(sed -n "s/^$key=//p" "$receipt")
+            if [ "$got" != "$want" ]; then
+              echo "$key=$got, expected $want" >&2
+              exit 1
+            fi
+          done
+          # Zero-test floor: the self-contained rule layers plus the native audit plus
+          # the vector assertions measured 87 on 2026-11-14; the floor sits just below
+          # so a vanished layer fails. Raise deliberately with the suite.
+          floor=80
+          passed=$(sed -n 's/^assertionsPassed=//p' "$receipt")
+          if [ "${passed:-0}" -lt "$floor" ]; then
+            echo "only ${passed:-0} assertions passed (floor $floor)" >&2
+            exit 1
+          fi
+          echo "receipt complete: ${passed} assertions passed; every vector count as declared"
+
+      - name: Upload native test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-reports-julia${{ matrix.julia-version }}
+          path: |
+            test-output.log
+            receipt-test.properties
+          if-no-files-found: error
+
+  # Supplemental and explicitly NOT acceptance: the old python3 bundle audit and the
+  # released reference toolkit, kept as an independent second opinion on the native
+  # result. Nothing in the primary job depends on it; continue-on-error so a broken
+  # oracle can never mask or fake the native verdict.
+  differential:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out FAIR-bioHeaders-Specification v0.6.0
+        uses: actions/checkout@v4
+        with:
+          repository: FAIR-bioHeaders/FAIR-bioHeaders-Specification
+          ref: v0.6.0
+          path: .spec-v0.6.0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Bundled-schema provenance audit (independent Python implementation)
+        run: python3 scripts/check_bundled_schemas.py
+
+      - name: Released toolkit verifies the released examples
+        run: |
+          # The differential: fair-bioheaders 0.11.0 (the writer-side authority) must
+          # agree that the same example files this reader accepts are valid. Advisory
+          # evidence only - native tests are the acceptance path.
+          python -m pip install fair-bioheaders==0.11.0
+          for f in examples/example.fhr.fasta examples/example.fhr.gfa \
+                   examples/fhp/example.fhp.fasta examples/fhgff3/annotation.fhgff3.gff3; do
+            echo "== $f"
+            bioheaders verify ".spec-v0.6.0/$f"
+          done

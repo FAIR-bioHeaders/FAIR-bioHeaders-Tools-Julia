@@ -19,8 +19,10 @@ From this checkout (Julia 1.12+; CI runs 1.12 and 1.x — the SHA-512/256 stdlib
 exists from 1.12, see `docs/CAPABILITY.md`):
 
 ```sh
-julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
-python3 scripts/check_bundled_schemas.py     # bundled contracts vs schemas/provenance.json
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'   # includes the native
+#   bundled-schema audit (src/audit.jl); the old python3 audit
+#   (scripts/check_bundled_schemas.py) survives only as the supplemental CI differential,
+#   never as the acceptance path.
 ```
 
 Acceptance runs against the shared conformance vectors, taken from the specification
@@ -33,9 +35,9 @@ FAIRBIOHEADERS_CONFORMANCE=/tmp/spec/conformance \
   julia --project=. -e 'using Pkg; Pkg.test()'
 ```
 
-When a vector cannot be decided here (compressed input, JSON-LD, microdata), report it
-as undecided with its reason; do not convert an undecided vector into a pass and do not
-claim family parity from a partial run.
+When a vector cannot be decided here (JSON-LD, microdata), report it as undecided with
+its reason; do not convert an undecided vector into a pass and do not claim family parity
+from a partial run. Compressed (gzip/BGZF) input is decided natively (`src/gzip.jl`).
 
 ## Bundled contracts
 

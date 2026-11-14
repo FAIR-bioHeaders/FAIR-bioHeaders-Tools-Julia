@@ -1,15 +1,25 @@
 # FAIRBioHeaders.jl test suite.
 #
+# Everything runs inside one outer testset so the receipt below can see the finished
+# results of every inner set.
+#
 # Layer 1 is self-contained: the byte rules (R1-R7, R10, G1), the header reader
-# (R8, R11, R12, R13), contract selection (V1-V6), format assertions and the R14
-# scheme warnings, on records and files built inside the test.
+# (R8, R11, R12, R13), contract selection (V1-V6), format assertions, the R14 scheme
+# warnings and the bundled-schema audit, on records and files built inside the test.
 #
 # Layer 2 is the acceptance gate: the 291 shared conformance vectors of
 # FAIR-bioHeaders-Specification release v0.6.0 (conformance/manifest.json).
 # The suite is NOT vendored here; it is located through the environment variable
 # FAIRBIOHEADERS_CONFORMANCE (a checkout of FAIR-bioHeaders-Specification at tag
-# v0.6.0) or a test/conformance directory, and skipped with a stated reason when
-# absent. CI provides the released tag, never main.
+# v0.6.0) or a test/conformance directory. When the variable is set but names no
+# suite, that is a missing fixture and the run errors; only a completely unset
+# variable (a local rule-only run) skips the layer, with a stated reason.
+# CI provides the released tag, never main, and asserts the receipt written below.
+#
+# The receipt (FAIRBIOHEADERS_RECEIPT=path) states what actually ran: vector counts,
+# the compressed-vector decision count, the audit finding count and the assertion
+# tally read out of Test's own result tree. A missing or short receipt fails CI; so
+# do failed, errored or broken assertions and an assertion count below the floor.
 
 using FAIRBioHeaders
 using SHA
@@ -20,6 +30,10 @@ using Test
 
 # 32 zero bytes in canonical padded base64: a shape-valid checksum value.
 const HELPER_B64 = "A"^42 * "A="
+
+# What the conformance and audit layers measured, recorded as they ran; the receipt
+# refuses to write `unknown` for any of it, so a layer that died halfway shows up.
+const STATE = Dict{String, Any}()
 
 "one-shot SHA-512/256 via the CTX API, which exists on every supported SHA stdlib
 version (SHA.jl's `sha2_512_256(bytes)` convenience export only arrived later)"
@@ -86,6 +100,60 @@ function build_file(meta::Vector{String}, data::String; prefix = ";~")
 end
 
 data_parts(data::AbstractString) = split(chomp(data), "\n")
+
+# --------------------------------------------------------------------------------------
+# Test-result introspection for the receipt. Types are matched by name because the set
+# of Test result types has varied across Julia lines (there is no `Test.Skip` on 1.13);
+# anything unrecognised counts into `other`, so a renamed type shows up in the receipt
+# instead of silently vanishing from the tally.
+# --------------------------------------------------------------------------------------
+
+function tally_assertions(ts)
+    # DefaultTestSet keeps only the non-pass results in `results` and counts the passes
+    # in `n_passed`; skipped tests arrive as Broken records.
+    c = Dict("pass" => ts.n_passed, "fail" => 0, "error" => 0, "broken" => 0, "other" => 0)
+    for r in ts.results
+        name = String(nameof(typeof(r)))
+        if name == "DefaultTestSet"
+            s = tally_assertions(r)
+            for k in keys(c); c[k] += s[k]; end
+        elseif name == "Fail"; c["fail"] += 1
+        elseif name == "Error"; c["error"] += 1
+        elseif name == "Broken"; c["broken"] += 1
+        else; c["other"] += 1
+        end
+    end
+    return c
+end
+
+const RECEIPT_KEYS = [
+    "conformanceSuiteUsed", "suiteVectors", "vectorsDecided", "vectorsPassed",
+    "vectorsFailed", "vectorsUndecided", "compressedVectorsDecided",
+    "jsonldUndecided", "microdataUndecided", "schemaAuditFindings",
+]
+
+function write_receipt(ts)
+    path = get(ENV, "FAIRBIOHEADERS_RECEIPT", "")
+    isempty(path) && return nothing
+    t = tally_assertions(ts)
+    lines = String[
+        "tool=FAIRBioHeaders.jl",
+        "juliaVersion=$(VERSION)",
+        "assertionsPassed=$(t["pass"])",
+        "assertionsFailed=$(t["fail"])",
+        "assertionsErrored=$(t["error"])",
+        "assertionsBroken=$(t["broken"])",
+        "assertionsOther=$(t["other"])",
+    ]
+    for k in RECEIPT_KEYS
+        push!(lines, "$(k)=$(get(STATE, k, "absent"))")
+    end
+    mkpath(dirname(abspath(path)))
+    write(path, join(lines, "\n") * "\n")
+    return nothing
+end
+
+@testset "FAIRBioHeaders" begin
 
 @testset "byte layer (R1-R7, R10, G1)" begin
     @testset "digest primitive (SHA-512/256, R4)" begin
@@ -307,18 +375,67 @@ end
     end
 end
 
+@testset "bundled schema audit (native)" begin
+    # The audit is the Julia counterpart of the old scripts/check_bundled_schemas.py
+    # check, which now runs only in the supplemental differential job: the primary
+    # acceptance path must not need Python to prove its own bundle is sound.
+    findings = audit_bundled_schemas()
+    STATE["schemaAuditFindings"] = length(findings)
+    for f in findings; println("audit: ", f); end
+    @test isempty(findings)
+
+    # The negative control: an audit that always returns nothing is no guard. Work on
+    # a throwaway copy of schemas/ and make the audit report each defect class.
+    src = normpath(joinpath(@__DIR__, "..", "schemas"))
+    tmp = mktempdir()
+    dst = joinpath(tmp, "schemas")
+    cp(src, dst)
+    p = joinpath(dst, "current", "fhr.json")
+    write(p, read(p, String) * " ")                      # byte drift, still parseable
+    write(joinpath(dst, "stray.json"), "{}\n")           # JSON not in provenance.json
+    reg = JSON.parsefile(joinpath(dst, "registry.json"))
+    reg["files"]["v0.6.0"]["FHT"] = "v0.6.0/fhr.json"    # a draft taking a release form
+    write(joinpath(dst, "registry.json"), JSON.json(reg))
+    rm(joinpath(dst, "v0.3.0", "fhr.json"))              # a listed file that is gone
+    fs = audit_bundled_schemas(dst)
+    @test any(occursin("current/fhr.json: sha256", f) for f in fs)
+    @test any(occursin("stray.json", f) for f in fs)
+    @test any(occursin("V7 violation: draft type row under v0.6.0", f) for f in fs)
+    @test any(occursin("v0.3.0/fhr.json", f) && occursin("missing", f) for f in fs)
+    rm(tmp; recursive = true)
+end
+
 @testset "shared conformance vectors (v0.6.0, 291 vectors)" begin
-    candidates = [get(ENV, "FAIRBIOHEADERS_CONFORMANCE", ""), joinpath(@__DIR__, "conformance")]
+    env = get(ENV, "FAIRBIOHEADERS_CONFORMANCE", "")
+    candidates = [env, joinpath(@__DIR__, "conformance")]
     suite = ""
     for c in candidates
         !isempty(c) && isfile(joinpath(c, "manifest.json")) && (suite = c; break)
     end
-    if isempty(suite)
+    if isempty(suite) && !isempty(env)
+        # A named fixture that is not there is an error, never a skip: CI always
+        # names the suite, so a missing checkout cannot pass unnoticed.
+        error("FAIRBIOHEADERS_CONFORMANCE points at $(env) but no manifest.json is there: " *
+              "the acceptance fixture (FAIR-bioHeaders-Specification at tag v0.6.0) is missing")
+    elseif isempty(suite)
+        STATE["conformanceSuiteUsed"] = "false"
         @test_skip "conformance suite not found: set FAIRBIOHEADERS_CONFORMANCE to a " *
                    "checkout of FAIR-bioHeaders-Specification at tag v0.6.0"
     else
+        STATE["conformanceSuiteUsed"] = "true"
         outcomes = run_conformance(suite)
         per = summarise(outcomes)
+        STATE["suiteVectors"] = length(outcomes)
+        STATE["vectorsDecided"] = count(o -> o.decided, outcomes)
+        STATE["vectorsPassed"] = sum(o -> o.decided && o.passed, outcomes)
+        STATE["vectorsFailed"] = sum(o -> o.decided && !o.passed, outcomes)
+        STATE["vectorsUndecided"] = count(o -> !o.decided, outcomes)
+        STATE["compressedVectorsDecided"] = let m = JSON.parsefile(joinpath(suite, "manifest.json"))
+            ids = [v["id"] for v in m["vectors"] if v["compressed"] === true || v["compressed"] == 1]
+            count(o -> o.id in ids && o.decided, outcomes)
+        end
+        STATE["jsonldUndecided"] = per["jsonld"]["undecided"]
+        STATE["microdataUndecided"] = per["microdata"]["undecided"]
         @test length(outcomes) == 291
         @test per["fasta"]["total"] == 98 && per["gfa"]["total"] == 56 &&
               per["fhp-fasta"]["total"] == 36 && per["fhgff3"]["total"] == 38 &&
@@ -331,10 +448,16 @@ end
         @test sum(d["pass"] for (_, d) in per) == 228
         # the 11 gzip/BGZF vectors are decided, not skipped (rule R1, decompressed input)
         compressed = [v["id"] for v in JSON.parsefile(joinpath(suite, "manifest.json"))["vectors"]
-                      if v["compressed"] === true || isone(v["compressed"])]
+                      if v["compressed"] === true || v["compressed"] == 1]
         @test length(compressed) == 11
         undec = filter(o -> !o.decided, outcomes)
         @test !any(o.id in compressed for o in undec)
+        # the undecided set is exactly the two named serialisation layers, by id count
+        @test Set(o.format for o in undec) == Set(["jsonld", "microdata"])
         @info "conformance per format" per
     end
+end
+
+write_receipt(Test.get_testset())
+
 end

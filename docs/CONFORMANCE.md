@@ -14,6 +14,11 @@ FAIRBIOHEADERS_CONFORMANCE=/tmp/spec/conformance \
   julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 ```
 
+With `FAIRBIOHEADERS_RECEIPT=<file>` the same run additionally writes the machine-
+readable counts CI asserts on (see `README.md`, "Tests"); setting
+`FAIRBIOHEADERS_CONFORMANCE` at a directory that holds no `manifest.json` is a missing
+fixture and fails the run rather than skipping it.
+
 ## Result measured 2026-11-14 (macOS/arm64, Julia 1.13.2, this tree, with native gzip/BGZF input)
 
 | format | pass | fail | undecided | total |
