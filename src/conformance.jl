@@ -29,12 +29,11 @@ function Base.show(io::IO, o::VectorOutcome)
 end
 
 """
-    run_conformance(suite; formats = runnable_formats(), only_compressed = false)
+    run_conformance(suite; formats = runnable_formats())
 
 Run the manifest's vectors from `suite` (a directory holding `manifest.json`, `valid/` and
-`invalid/`). Returns one `VectorOutcome` per vector. Compressed vectors are skipped with a
-reason: this package does not yet decompress gzip or BGZF in Julia, and rule R1 hashes the
-decompressed bytes.
+`invalid/`). Returns one `VectorOutcome` per vector. Compressed vectors are decided like the
+rest: `verify_file` decompresses gzip/BGZF input and rule R1 hashes the decompressed bytes.
 """
 function run_conformance(suite::AbstractString; formats = runnable_formats())
     manifest = JSON.parsefile(joinpath(suite, "manifest.json"))
@@ -44,11 +43,6 @@ function run_conformance(suite::AbstractString; formats = runnable_formats())
         if !(fmt in formats)
             push!(outcomes, VectorOutcome(v["id"], fmt, v["expected"], false, false,
                                           "format $(fmt) is outside this runner"))
-            continue
-        end
-        if isone(v["compressed"]) || v["compressed"] === true
-            push!(outcomes, VectorOutcome(v["id"], fmt, v["expected"], false, false,
-                                          "compressed input: no gzip/BGZF reader in this package yet (rule R1)"))
             continue
         end
         push!(outcomes, run_vector(suite, v))
@@ -90,7 +84,7 @@ function run_vector(suite::AbstractString, v::AbstractDict)
                              "not checked: " * join(result.not_checked, "; "))
     end
     return VectorOutcome(v["id"], v["format"], "invalid", true, !result.ok,
-                         result.ok ? "accepted, but the file breaks rule $(rule)" : join(first.(result.errors), "; "))
+                         result.ok ? "accepted, but the file breaks rule $(rule)" : join(result.errors, "; "))
 end
 
 "The FORMAT.md and per-type rules this implementation can decide. Anything else is

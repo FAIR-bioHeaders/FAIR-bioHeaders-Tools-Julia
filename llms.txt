@@ -37,12 +37,16 @@ r.ok; r.stated; r.computed; r.errors; r.warnings; r.not_checked
 
 API: `verify_file`, `read_fhr_file`, `read_fhr_header`, `header_checksum`,
 `validate_record`, `select_contract`, `parse_citation`, `bundled_contracts`,
-`link_scheme_warnings`, `run_conformance`, `summarise`.
+`link_scheme_warnings`, `run_conformance`, `summarise`, `read_file_bytes`,
+`is_gzip`, `decompress_gzip`.
 
 Acceptance is the shared conformance suite of FAIR-bioHeaders-Specification (291 vectors
-at tag v0.6.0), never a Julia-only suite. The 26 microdata and 37 JSON-LD vectors and the
-11 compressed (gzip/BGZF) vectors are reported undecided by this reader with their
-reasons — see `docs/CONFORMANCE.md`.
+at tag v0.6.0), never a Julia-only suite. Measured 2026-11-14: **228 pass / 0 fail /
+63 undecided** — all four sequence formats fully decided, including the 11 compressed
+(gzip/BGZF) vectors, decompressed natively through the `CodecZlib` boundary isolated in
+`src/gzip.jl` (the pure-Julia `Inflate` truncates multi-member and BGZF streams and is
+rejected). The 26 microdata and 37 JSON-LD vectors are reported undecided by this
+reader with their reasons — see `docs/CONFORMANCE.md`.
 
 ## See also
 

@@ -15,6 +15,7 @@ using FAIRBioHeaders
 using SHA
 using Base64
 using JSON
+using CodecZlib
 using Test
 
 # 32 zero bytes in canonical padded base64: a shape-valid checksum value.
@@ -147,6 +148,59 @@ data_parts(data::AbstractString) = split(chomp(data), "\n")
         @test_throws HeaderError read_fhr_file(
             Vector{UInt8}("##gff-version 3.1\n#~checksum: $HELPER_B64\nctg1\n"), "fhgff3")
     end
+
+    @testset "gzip and BGZF input (R1: the digest covers decompressed bytes)" begin
+        # A self-contained fixture: the same text compressed and uncompressed must verify to
+        # the same checksum — rule R1 says the hash is over the decompressed bytes.
+        meta = ["schema: https://w3id.org/fair-bioheaders/fhp/v0.6.0",
+                "schemaVersion: '1.2'", "proteome: Synthetic",
+                "sourceType: predicted", "taxon:", "  name: Synthetic organism",
+                "version: 1.0.0", "metadataAuthor:", "- name: A Tester",
+                "dateCreated: '2026-01-01'"]
+        text, digest = build_file(meta, ">p1\nMKV\n>p2\nMLA\n")
+        plain = tempname() * ".fhp.fasta"
+        gz = tempname() * ".fhp.fasta.gz"
+        write(plain, text)
+        write(gz, transcode(GzipCompressor, Vector{UInt8}(text)))
+        rp = verify_file(plain)
+        rg = verify_file(gz)
+        @test rp.ok && rg.ok
+        @test rp.computed == digest && rg.computed == digest   # the .gz carries the plain digest
+        @test is_gzip(read(gz)) && !is_gzip(read(plain))
+        # detection is by magic, not by file name: the same bytes under a bare name still read
+        bare = tempname()
+        cp(gz, bare)
+        @test verify_file(bare; kind = "fhp-fasta").computed == digest
+        rm(bare)
+        # multi-member gzip: concatenated members are one stream (this is also what a BGZF
+        # file is, block by block; the released suite's BGZF vectors decide that shape too)
+        whole = Vector{UInt8}(text)
+        half = div(length(whole), 2)
+        members = transcode(GzipCompressor, whole[1:half])
+        append!(members, transcode(GzipCompressor, whole[half + 1:end]))
+        mm = tempname() * ".fhp.fasta.gz"
+        write(mm, members)
+        @test decompress_gzip(members) == whole
+        @test verify_file(mm; kind = "fhp-fasta").computed == digest
+        rm(mm)
+        # a truncated stream is an R1 byte-layer error, never a silent empty result
+        cut = members[1:div(length(members), 2)]
+        @test_throws HeaderError decompress_gzip(cut)
+        # a tampered member body either fails CRC or changes the decompressed bytes, so the
+        # recomputed digest no longer matches what the file states: the file reads invalid
+        bad = copy(members)
+        bad[end - 30] = xor(bad[end - 30], 0x01)
+        badgz = tempname() * ".fhp.fasta.gz"
+        write(badgz, bad)
+        rb = try
+            verify_file(badgz)
+        catch e
+            e isa HeaderError ? nothing : rethrow()
+        end
+        @test rb === nothing || !rb.ok
+        rm(badgz)
+        rm(plain); rm(gz)
+    end
 end
 
 @testset "header reader (R8, R11, R12, R13)" begin
@@ -273,8 +327,14 @@ end
         for f in fails; println(f); end
         @test isempty(fails)
         @test sum(d["fail"] for (_, d) in per) == 0
-        @test count(o -> o.decided, outcomes) == 217     # 291 minus 11 compressed, 37 jsonld, 26 microdata
-        @test sum(d["pass"] for (_, d) in per) == 217
+        @test count(o -> o.decided, outcomes) == 228     # 291 minus 37 jsonld and 26 microdata
+        @test sum(d["pass"] for (_, d) in per) == 228
+        # the 11 gzip/BGZF vectors are decided, not skipped (rule R1, decompressed input)
+        compressed = [v["id"] for v in JSON.parsefile(joinpath(suite, "manifest.json"))["vectors"]
+                      if v["compressed"] === true || isone(v["compressed"])]
+        @test length(compressed) == 11
+        undec = filter(o -> !o.decided, outcomes)
+        @test !any(o.id in compressed for o in undec)
         @info "conformance per format" per
     end
 end

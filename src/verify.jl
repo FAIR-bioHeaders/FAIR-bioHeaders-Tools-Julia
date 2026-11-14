@@ -87,13 +87,14 @@ R11 warnings without contract validation.
 function read_fhr_file(path::AbstractString; kind::Union{Nothing, AbstractString} = nothing)
     k = kind === nothing ? kind_of(path) : String(kind)
     k === nothing && throw(ArgumentError("cannot tell the header kind from $(repr(path)); pass kind"))
-    return read_fhr_file(read(path), k)
+    return read_fhr_file(read_file_bytes(path), k)
 end
 
 """
     verify_file(path; kind = nothing, validate = true) -> VerifyResult
 
-Check one file end to end: header block and checksum line (R2, R5), checksum coverage and
+Check one file end to end: gzip/BGZF input is decompressed first (R1 hashes the
+decompressed bytes), then header block and checksum line (R2, R5), checksum coverage and
 value (R1-R4), encoding (R6, R7), placement (R10, G1), metadata rules (R8, R11, R12, R13),
 then the contract the record selects for itself (V1-V6) with its `format` assertions, and
 the R14 link-scheme warnings.
@@ -110,7 +111,7 @@ function verify_file(path::AbstractString; kind::Union{Nothing, AbstractString} 
     stated = computed = nothing
     metadata = nothing
     try
-        data = read(path)
+        data = read_file_bytes(path)
         r = header_checksum(data, k)
         stated, computed = r.stated, r.computed
         stated == computed || push!(errors,

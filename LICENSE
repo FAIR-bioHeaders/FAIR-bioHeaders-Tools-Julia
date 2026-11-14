@@ -430,7 +430,10 @@ in their registries and LICENSE files:
 - CorvusJsonSchema - Apache License 2.0 (with the third-party notices listed
   upstream);
 - JSON - MIT License;
-- YAML - MIT License;
+- CodecZlib - MIT "Expat" License (pure Julia);
+- TranscodingStreams - MIT "Expat" License (pure Julia);
+- Zlib_jll - a BinaryBuilder build of the zlib C library, which carries the zlib
+  license, with the wrapper package under the MIT License;
 - the Julia standard library (Base64, Dates, SHA, Tar, Test, TOML, UUIDs,
   Unicode) - MIT License as part of the Julia language.
 

@@ -65,9 +65,11 @@ other unknown value (there is a regression test pinning this behaviour).
 The shared **291 conformance vectors** at specification tag v0.6.0 are the gate —
 never a new per-language suite. `test/runtests.jl` takes them from
 `FAIRBIOHEADERS_CONFORMANCE`; CI checks out the released tag, never main. Report
-per-format pass counts and name skipped vectors with their reason (compressed I/O
-and the JSON-LD/microdata bindings are out of scope here and reported as undecided,
-not as passed). From this decision: local `julia --project=. -e 'using Pkg; Pkg.test()'`
+per-format pass counts and name skipped vectors with their reason (gzip/BGZF input
+is decided natively through the documented `CodecZlib` boundary, docs/CAPABILITY.md
+E0(d); only the JSON-LD and microdata bindings are out of scope here and reported as
+undecided, not as passed). From this decision: local
+`julia --project=. -e 'using Pkg; Pkg.test()'`
 plus `python3 scripts/check_bundled_schemas.py`.
 
 ## Licensing

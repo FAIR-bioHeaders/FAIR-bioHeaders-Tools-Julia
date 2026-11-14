@@ -161,6 +161,37 @@ keeps, mistypes plain scalars against YAML 1.2 core, and folds a single line bre
 differently from every other family reader. **Result: the strict local reader is
 required**, and its rule behaviour is pinned in `test/runtests.jl`.
 
+## E0(d) — decompressing gzip/BGZF input (rule R1), measured 2026-11-14
+
+Rule R1 hashes the **decompressed** bytes, so a reader that cannot inflate gzip cannot
+decide the suite's 11 compressed vectors (and the FHT draft suite's 2). Julia has no
+gzip in the standard library, so the candidate was the ecosystem's `CodecZlib`. The
+pure-Julia alternative `Inflate` was probed too, because it would avoid any compiled
+dependency. Both were run over the released bytes on this host (Julia 1.13.2):
+
+| input | `CodecZlib 0.7.9` (`transcode(GzipDecompressor, …)`) | `Inflate 0.1.5` (`inflate_gzip`) |
+| --- | --- | --- |
+| single-member gzip (7 vectors: fasta/gfa/fhp/fhgff3 gzip, the tampered vector, `fht-fasta-gzip`) | all decompressed | all decompressed, byte-equal to CodecZlib |
+| multi-member gzip (`fasta-gzip-multimember`, `gfa-gzip-multimember`) | decompressed | **truncated** (496 of 581 bytes — stops after the first member, no error) |
+| BGZF (`fasta-bgzf` and 4 more, plus `fht-fasta-bgzf`) | decompressed | **truncated** (96 of 581 bytes — first block only, no error) |
+
+`Inflate`'s failure mode is silent truncation, which is the worst possible class for a
+checksum reader: a truncated inflate is a different byte sequence, so any verdict it
+supports is an artifact of where decompression stopped. It is **not usable here**.
+
+`CodecZlib 0.7.9` reads all 13 compressed vectors (11 shared + 2 FHT draft) and the
+whole compressed vector set then decides and passes (docs/CONFORMANCE.md). Its cost is
+one compiled boundary: `CodecZlib` (MIT, pure Julia) → `TranscodingStreams` (MIT) →
+`Zlib_jll` (BinaryBuilder build of the zlib C library, zlib license; wrapper MIT — the
+same zlib Julia's own `Pkg` transports tarballs with). The boundary is isolated to
+`decompress_gzip` in `src/gzip.jl`, is entered only on the two-byte gzip magic (never
+by file-name inference), and its behaviour — magic detection, multi-member and BGZF
+concatenation, truncated-stream rejection — is pinned by a self-contained testset in
+`test/runtests.jl` on top of the shared vectors.
+
+**Result: `CodecZlib` is the accepted dependency; the compiled-boundary rationale and
+its isolation are above. `Inflate` must not be substituted.**
+
 ## Julia version floor: measured, not copied
 
 `julia = "1.10"` was the salvaged declaration and is **wrong for this package**: the
