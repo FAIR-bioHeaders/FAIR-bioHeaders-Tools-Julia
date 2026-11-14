@@ -161,6 +161,24 @@ keeps, mistypes plain scalars against YAML 1.2 core, and folds a single line bre
 differently from every other family reader. **Result: the strict local reader is
 required**, and its rule behaviour is pinned in `test/runtests.jl`.
 
+## Julia version floor: measured, not copied
+
+`julia = "1.10"` was the salvaged declaration and is **wrong for this package**: the
+SHA-512/256 API is absent from the SHA stdlib of the older lines, verified by running the
+binaries directly on 2026-11-14:
+
+| Julia | stdlib SHA | `SHA2_512_256_CTX` / `sha2_512_256` |
+| --- | --- | --- |
+| 1.10.13 | 0.7.0 | absent / absent |
+| 1.11.9 | 0.7.0 | absent / absent |
+| 1.12.0 | 0.7.0 | **present** / present |
+| 1.12.7 | 0.7.0 | present / present |
+| 1.13.2 | 1.0.0 | present / present |
+
+The stdlib cannot be overridden from the registry (shared UUID), so the floor is
+`julia = "1.12"`, and the CI matrix runs 1.12 and 1.x. The full suite (71 assertions +
+217 decided vectors) passes on 1.12.7 and 1.13.2 on this host.
+
 ## Licence-tooling probe (Project.toml)
 
 `license = "MPL-2.0"` (bare SPDX string) + a `LICENSE` whose first lines are a prose

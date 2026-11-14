@@ -51,7 +51,9 @@ other unknown value (there is a regression test pinning this behaviour).
   firing matrix in docs/CAPABILITY.md against the released bytes first.
 * The digest is **SHA-512/256**, base64 with padding whose last 4 bits are zero
   (R4). Julia stdlib `SHA.SHA2_512_256_CTX` is byte-equal to the released toolkit;
-  keep it that way and keep the NIST probe in the test suite.
+  keep it that way and keep the NIST probe in the test suite. The API exists only
+  from Julia **1.12** (measured: 1.10/1.11 stdlib SHA 0.7.0 lack it and cannot be
+  overridden from the registry), which is why `julia = "1.12"`; do not lower it.
 * Julia gotchas that bit this tree once: `$ref` inside a triple-quoted docstring
   is string interpolation (escape it as `\$ref`); `String(::Vector{UInt8})` steals
   the array's buffer; `parse(Int, ...; raise = false)` does not exist for integers
