@@ -19,7 +19,8 @@ schema, and makes no `schemaVersion` or w3id claim for either.
 ## What it does
 
 * `verify_file(path)` — reads the header block, verifies the SHA-512/256 checksum of the
-  exact bytes it covers (rule R3), parses the YAML metadata block under the family's
+  exact bytes it covers (rule R3; gzip/BGZF input is decompressed first, because R1 hashes
+  the decompressed bytes), parses the YAML metadata block under the family's
   portability rules (R8, R11, R12, R13), validates the record against the JSON Schema
   contract its own `schema` citation selects (V1–V6, draft 2020-12 with `date`/`uri`
   format assertions) and reports R14 link-scheme warnings.

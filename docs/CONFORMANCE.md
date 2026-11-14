@@ -14,17 +14,22 @@ FAIRBIOHEADERS_CONFORMANCE=/tmp/spec/conformance \
   julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 ```
 
-## Result measured 2026-11-14 (macOS/arm64, Julia 1.13.2, this tree)
+## Result measured 2026-11-14 (macOS/arm64, Julia 1.13.2, this tree, with native gzip/BGZF input)
 
 | format | pass | fail | undecided | total |
 | --- | --- | --- | --- | --- |
-| fasta | 94 | 0 | 4 | 98 |
-| gfa | 53 | 0 | 3 | 56 |
-| fhp-fasta | 34 | 0 | 2 | 36 |
-| fhgff3 | 36 | 0 | 2 | 38 |
+| fasta | 98 | 0 | 0 | 98 |
+| gfa | 56 | 0 | 0 | 56 |
+| fhp-fasta | 36 | 0 | 0 | 36 |
+| fhgff3 | 38 | 0 | 0 | 38 |
 | jsonld | 0 | 0 | 37 | 37 |
 | microdata | 0 | 0 | 26 | 26 |
-| **total** | **217** | **0** | **74** | **291** |
+| **total** | **228** | **0** | **63** | **291** |
+
+An earlier run of the same tree without the gzip/BGZF layer (commits `eaf0f56`+`d6d4512`)
+measured **217 / 0 / 74**: the 11 compressed vectors were reported undecided for lack of a
+decompressor. They are decided here by `src/gzip.jl` (rule R1 hashes the decompressed
+bytes), so the four sequence formats are now fully decided: 98+56+36+38 = 228.
 
 Every decided vector passed, including the one this pass initially failed:
 `fhgff3-header-after-fasta` (a `#~` line after `##FASTA`, rule G1) was **accepted**
@@ -39,19 +44,23 @@ defines, and the vector rejects.
   an HTML microdata extractor. This package implements neither; the sibling R and
   JavaScript studies skip the same layers for the same reason. The vectors are
   reported `undecided`, never passed.
-* **11 compressed vectors**: `fasta-gzip`, `fasta-bgzf`, `fasta-gzip-multimember`,
-  `fasta-gzip-sequence-tampered`, `gfa-gzip`, `gfa-bgzf`, `gfa-gzip-multimember`,
-  `fhp-fasta-gzip`, `fhp-fasta-bgzf`, `fhgff3-gzip`, `fhgff3-bgzf`. Rule R1 hashes
-  the decompressed bytes; this package does not yet decompress gzip/BGZF in Julia,
-  so each is reported `undecided` with that reason by `run_conformance`.
+
+The 11 compressed vectors (`fasta-gzip`, `fasta-bgzf`, `fasta-gzip-multimember`,
+`fasta-gzip-sequence-tampered`, `gfa-gzip`, `gfa-bgzf`, `gfa-gzip-multimember`,
+`fhp-fasta-gzip`, `fhp-fasta-bgzf`, `fhgff3-gzip`, `fhgff3-bgzf`) are no longer on
+this list: `src/gzip.jl` decompresses gzip, multi-member gzip and BGZF in Julia
+(through the `CodecZlib`/`Zlib_jll` dependency boundary documented in
+`docs/CAPABILITY.md`) and rule R1 hashes the decompressed bytes, so each is now
+decided like the uncompressed vectors.
 
 Skips are decided by the runner and printed per vector (`decided = false`);
 `summarise(outcomes)` produces the table above from a live run, and
-`test/runtests.jl` asserts zero decided failures and the expected totals.
+`test/runtests.jl` asserts zero decided failures, the expected totals and that no
+compressed vector remains undecided.
 
 ## Parity statement, bounded
 
-217/217 decided vectors pass on the four sequence formats (FHR FASTA + GFA, FHP,
-FHGFF3) on one host at one tag. That is the whole claim: it is not a family-parity
-claim (69 shared vectors are undecided here), and it says nothing about
-`bioheaders` writer behaviour, JSON-LD or microdata output.
+228/228 decided vectors pass on the four sequence formats (FHR FASTA + GFA, FHP,
+FHGFF3), uncompressed and compressed alike, on one host at one tag. That is the
+whole claim: it is not a family-parity claim (63 shared vectors are undecided here),
+and it says nothing about `bioheaders` writer behaviour, JSON-LD or microdata output.
