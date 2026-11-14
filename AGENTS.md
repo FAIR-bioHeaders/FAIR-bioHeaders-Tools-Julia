@@ -69,8 +69,11 @@ per-format pass counts and name skipped vectors with their reason (gzip/BGZF inp
 is decided natively through the documented `CodecZlib` boundary, docs/CAPABILITY.md
 E0(d); only the JSON-LD and microdata bindings are out of scope here and reported as
 undecided, not as passed). From this decision: local
-`julia --project=. -e 'using Pkg; Pkg.test()'`
-plus `python3 scripts/check_bundled_schemas.py`.
+`julia --project=. -e 'using Pkg; Pkg.test()'` — which includes the native
+bundled-schema audit (`audit_bundled_schemas`, `src/audit.jl`); the former
+`python3 scripts/check_bundled_schemas.py` audit remains only as the supplemental
+CI differential and is no longer the primary path (issue #3: the acceptance job
+runs without Python).
 
 ## Licensing
 

@@ -69,10 +69,18 @@ verifier. After any byte change to a header, recombine with the toolkit.
 julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 ```
 
-`Pkg.test` runs the self-contained rule tests plus, when `FAIRBIOHEADERS_CONFORMANCE`
-points at a checkout of the specification at tag `v0.6.0`, the shared conformance vectors
-(the CI workflow does exactly that; shared vectors are taken from releases, never main).
-Without that variable the vector test is skipped and says so.
+`Pkg.test` runs the self-contained rule tests and the native bundled-schema audit
+(`audit_bundled_schemas`) plus, when `FAIRBIOHEADERS_CONFORMANCE` points at a checkout
+of the specification at tag `v0.6.0`, the shared conformance vectors (the CI workflow
+does exactly that; shared vectors are taken from releases, never main). Setting that
+variable at a directory with no suite is a fixture error and fails; only leaving it
+unset (a local rule-only run) skips the vector layer, and it says so. With
+`FAIRBIOHEADERS_RECEIPT=path` the run writes a receipt of the counts it measured
+(vectors decided/passed/failed, compressed-vector decisions, audit findings, assertion
+tally), and CI asserts every number in it — a green build with a missing or short
+receipt fails the job. The Python toolkit is never part of this path; the released
+toolkit and the old Python audit run only in a separate, explicitly supplemental
+`differential` job.
 
 ## License and provenance
 
