@@ -20,6 +20,14 @@ using Test
 # 32 zero bytes in canonical padded base64: a shape-valid checksum value.
 const HELPER_B64 = "A"^42 * "A="
 
+"one-shot SHA-512/256 via the CTX API, which exists on every supported SHA stdlib
+version (SHA.jl's `sha2_512_256(bytes)` convenience export only arrived later)"
+function sha512_256_bytes(bytes)::Vector{UInt8}
+    ctx = SHA2_512_256_CTX()
+    SHA.update!(ctx, bytes)
+    return SHA.digest!(ctx)
+end
+
 function base_record()
     Dict{String, Any}(
         "schema" => "https://w3id.org/fair-bioheaders/fhr/v0.6.0",
@@ -71,7 +79,7 @@ function build_file(meta::Vector{String}, data::String; prefix = ";~")
     lines = [prefix * m for m in meta]
     append!(lines, String.(data_parts(data)))
     covered = join(lines, "\n") * "\n"
-    digest = base64encode(sha2_512_256(Vector{UInt8}(covered)))
+    digest = base64encode(sha512_256_bytes(Vector{UInt8}(covered)))
     insert!(lines, length(meta) + 1, prefix * "checksum: " * digest)   # last header line
     return join(lines, "\n") * "\n", digest
 end
@@ -81,9 +89,9 @@ data_parts(data::AbstractString) = split(chomp(data), "\n")
 @testset "byte layer (R1-R7, R10, G1)" begin
     @testset "digest primitive (SHA-512/256, R4)" begin
         # NIST-published SHA-512/256("abc"); matches Python hashlib and openssl on this host.
-        @test bytes2hex(sha2_512_256(b"abc")) ==
+        @test bytes2hex(sha512_256_bytes(b"abc")) ==
               "53048e2681941ef99b2e29b76b4c7dabe4c2d0c634fc6d46e0e2f13107e7af23"
-        @test base64encode(sha2_512_256(b"abc")) == "UwSOJoGUHvmbLim3a0x9q+TC0MY0/G1G4OLxMQfnryM="
+        @test base64encode(sha512_256_bytes(b"abc")) == "UwSOJoGUHvmbLim3a0x9q+TC0MY0/G1G4OLxMQfnryM="
     end
 
     @testset "scan_lines terminators (R1)" begin
