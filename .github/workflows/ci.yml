@@ -252,14 +252,14 @@ jobs:
             echo "control 2 is a vacuous no-op: the mutation changed zero bytes"
             exit 1
           fi
-          julia --project=. scripts/draft_pins.jl --check-suite "$good" | tee "$RUNNER_TEMP/good.log"
+          julia --project=. scripts/draft_pins.jl --check-suite "$good" FHT | tee "$RUNNER_TEMP/good.log"
           grep -q "verified -" "$RUNNER_TEMP/good.log"
-          if julia --project=. scripts/draft_pins.jl --check-suite "$moved" > "$RUNNER_TEMP/moved.log" 2>&1; then
+          if julia --project=. scripts/draft_pins.jl --check-suite "$moved" FHT > "$RUNNER_TEMP/moved.log" 2>&1; then
             echo "control 2 failed: a manifest with one extra byte was accepted as the pinned suite"
             exit 1
           fi
           grep -q "digests to" "$RUNNER_TEMP/moved.log"
-          if julia --project=. scripts/draft_pins.jl --check-suite "$cased" > "$RUNNER_TEMP/cased.log" 2>&1; then
+          if julia --project=. scripts/draft_pins.jl --check-suite "$cased" FHT > "$RUNNER_TEMP/cased.log" 2>&1; then
             echo "control 3 failed: conformance/manifest.json resolved through a differently cased directory"
             exit 1
           fi
