@@ -5,7 +5,10 @@
 #
 # Layer 1 is self-contained: the byte rules (R1-R7, R10, G1), the header reader
 # (R8, R11, R12, R13), contract selection (V1-V6), format assertions, the R14 scheme
-# warnings and the bundled-schema audit, on records and files built inside the test.
+# warnings, the bundled-schema audit and the rule-V7 draft lane machinery (pinned-byte
+# enforcement with mutation controls, lane-off byte-identity, FHGM model checks), on
+# records and files built inside the test. The draft SUITES are not run here; they run
+# only in the labelled CI job through scripts/draft_vectors.jl and never join the 291.
 #
 # Layer 2 is the acceptance gate: the 291 shared conformance vectors of
 # FAIR-bioHeaders-Specification release v0.6.0 (conformance/manifest.json).
@@ -17,9 +20,10 @@
 # CI provides the released tag, never main, and asserts the receipt written below.
 #
 # The receipt (FAIRBIOHEADERS_RECEIPT=path) states what actually ran: vector counts,
-# the compressed-vector decision count, the audit finding count and the assertion
-# tally read out of Test's own result tree. A missing or short receipt fails CI; so
-# do failed, errored or broken assertions and an assertion count below the floor.
+# the compressed-vector decision count, the audit finding counts (released bundle and
+# draft pins) and the assertion tally read out of Test's own result tree. A missing or
+# short receipt fails CI; so do failed, errored or broken assertions and an assertion
+# count below the floor.
 
 using FAIRBioHeaders
 using SHA
@@ -30,6 +34,13 @@ using Test
 
 # 32 zero bytes in canonical padded base64: a shape-valid checksum value.
 const HELPER_B64 = "A"^42 * "A="
+
+"Byte equality of two files. Every mutation control in this suite first proves the
+mutation is real with this: a guard tested against bytes it could not distinguish from
+the originals proves nothing (a control that cannot fail is decoration)."
+function cmp_similar(a::AbstractString, b::AbstractString)
+    read(a) == read(b)
+end
 
 # What the conformance and audit layers measured, recorded as they ran; the receipt
 # refuses to write `unknown` for any of it, so a layer that died halfway shows up.
@@ -130,6 +141,7 @@ const RECEIPT_KEYS = [
     "conformanceSuiteUsed", "suiteVectors", "vectorsDecided", "vectorsPassed",
     "vectorsFailed", "vectorsUndecided", "compressedVectorsDecided",
     "jsonldUndecided", "microdataUndecided", "schemaAuditFindings",
+    "draftPinFindings",
 ]
 
 function write_receipt(ts)
@@ -317,8 +329,11 @@ end
         @test select_contract("not a citation")[1:2] == ("FHR", "main")       # V5 fallback
         @test_throws UnsupportedContract select_contract("https://w3id.org/fair-bioheaders/fhr/v0.2.0")
         @test_throws UnsupportedContract select_contract("https://w3id.org/fair-bioheaders/fhgff3/v0.3.0")
-        # V7: FHT and FHGM are drafts with no released contract. A citation of either
-        # falls to V5 exactly as any other value, and no draft schema is bundled.
+        # V7, lane CLOSED (the default): FHT and FHGM citations fall to V5 exactly as
+        # any other value - the outcome this repository produced before the lane
+        # existed - and no draft appears in the released bundle or registry. The
+        # drafts live separately under drafts/ and are read only by explicit opt-in
+        # (see the "draft lane" testset).
         @test select_contract("https://w3id.org/fair-bioheaders/fht/v0.7.0")[1:2] == ("FHR", "main")
         reg = bundled_contracts()
         @test !any(haskey(get(reg["files"], rel, Dict()), "FHT") for rel in keys(reg["files"]))
@@ -403,6 +418,209 @@ end
     @test any(occursin("V7 violation: draft type row under v0.6.0", f) for f in fs)
     @test any(occursin("v0.3.0/fhr.json", f) && occursin("missing", f) for f in fs)
     rm(tmp; recursive = true)
+end
+
+@testset "draft lane (V7, opt-in)" begin
+    # Everything the lane touches, without the network: the registry is read and
+    # ENFORCED here (a pin nothing consumes is documentation, not a control), the
+    # default path is re-proved unchanged, and each guard is shown capable of
+    # failing. The draft SUITES are not run here - they run only in the separate,
+    # labelled CI job through scripts/draft_vectors.jl and never join the 291.
+    FHT_CITATION = "https://raw.githubusercontent.com/FAIR-bioHeaders/FHT-Specification/main/fht.json"
+    FHGM_CITATION = "https://raw.githubusercontent.com/FAIR-bioHeaders/FHGM-Specification/" *
+                    "main/development/model/fhgm-model.schema.json"
+
+    @testset "pinned bytes are consumed, not just recorded" begin
+        # The code-side audit of drafts/provenance.json: every vendored file must
+        # digest to its recorded sha256, this run, or the whole suite fails.
+        findings = verify_draft_bytes()
+        STATE["draftPinFindings"] = length(findings)
+        for f in findings; println("draft audit: ", f); end
+        @test isempty(findings)
+
+        # The negative control: the guard above must be able to fail. Work on a
+        # throwaway copy of drafts/.
+        tmp = mktempdir()
+        dst = joinpath(tmp, "drafts")
+        cp(normpath(joinpath(@__DIR__, "..", "drafts")), dst)
+        p = joinpath(dst, "fht-draft.json")
+        write(p, read(p, String) * " ")                 # one trailing byte
+        @test !cmp_similar(p, joinpath(@__DIR__, "..", "drafts", "fht-draft.json"))  # mutation is real
+        fs = verify_draft_bytes(dst)
+        @test any(occursin("FHT", f) && occursin("sha256", f) for f in fs)
+        # load_draft must REFUSE the tampered bytes, not compile them.
+        @test_throws HeaderError load_draft("FHT"; dir = dst)
+        rm(joinpath(dst, "fhgm-transport-draft.json"))
+        fs2 = verify_draft_bytes(dst)
+        @test any(occursin("missing", f) for f in fs2)
+        # a draft acquiring a release shape in the registry is a V7 violation finding
+        prov = JSON.parsefile(joinpath(dst, "provenance.json"))
+        prov["drafts"]["FHT"]["w3id"] = "https://w3id.org/fair-bioheaders/fht/v0.7.0"
+        write(joinpath(dst, "provenance.json"), JSON.json(prov))
+        cp(normpath(joinpath(@__DIR__, "..", "drafts", "fht-draft.json")), joinpath(dst, "fht-draft.json"); force = true)
+        fs3 = verify_draft_bytes(dst)
+        @test any(occursin("V7 violation", f) && occursin("w3id", f) for f in fs3)
+        rm(tmp; recursive = true)
+    end
+
+    @testset "the default path is unchanged (lane off)" begin
+        # A draft citation with the lane closed is "any other value" under V5: the
+        # exact tuples this repository returned before the lane existed.
+        @test select_contract(FHT_CITATION)[1:2] == ("FHR", "main")
+        @test select_contract("https://w3id.org/fair-bioheaders/fht/v0.7.0")[1:2] == ("FHR", "main")
+        @test select_contract(FHGM_CITATION)[1:2] == ("FHR", "main")
+        @test draft_lane_of(FHT_CITATION; drafts = false) === nothing
+        # the shared ledger knows nothing of the drafts
+        @test !("fht-fasta" in runnable_formats())
+        @test !("C1" in implemented_rules()) && !("K2" in implemented_rules())
+    end
+
+    @testset "lane on: selection, warning, and no release form" begin
+        type, ref, path = select_contract(FHT_CITATION, nothing; drafts = true)
+        @test (type, ref) == ("FHT", "draft")
+        @test occursin("drafts", path)
+        # Release-form citations stay V5 even with the lane open: the lane grants
+        # recognition of pinned bytes, never a release shape.
+        @test select_contract("https://w3id.org/fair-bioheaders/fht/v0.7.0", nothing; drafts = true)[1:2] == ("FHR", "main")
+        @test select_contract("https://raw.githubusercontent.com/FAIR-bioHeaders/FHT-Specification/v0.7.0/fht.json",
+                              nothing; drafts = true)[1:2] == ("FHR", "main")
+        # FHGM is not a header type: its citation never selects a file contract.
+        @test select_contract(FHGM_CITATION, nothing; drafts = true)[1:2] == ("FHR", "main")
+        e = draft_entry("FHT")
+        @test e.release_tag === nothing && e.w3id === nothing && e.registry_row === nothing
+        w = draft_warning(e)
+        @test occursin("unreleased draft", w) && occursin(e.commit, w) && occursin(e.sha256, w)
+    end
+
+    @testset "lane file reading (synthetic FHT record)" begin
+        meta = ["schema: $FHT_CITATION", "schemaVersion: '1.0'",
+                "transcriptome: Synthetic test transcriptome", "assemblyType: de novo",
+                "taxon:", "  name: Homo sapiens", "version: 1.0.0",
+                "metadataAuthor:", "- name: Test metadata author", "dateCreated: '2026-01-01'"]
+        text, _ = build_file(meta, ">tr1\nACGU\n")
+        path = tempname() * ".fht.fasta"
+        write(path, text)
+        r_off = verify_file(path)                       # default: the pre-lane outcome
+        @test !r_off.ok
+        @test !any(occursin("unreleased draft", w) for w in r_off.warnings)
+        r_on = verify_file(path; drafts = true)         # lane: read against the pinned bytes
+        @test r_on.ok
+        @test any(occursin("unreleased draft", w) && occursin("FHT", w) for w in r_on.warnings)
+        @test r_on.computed == r_off.computed           # the byte layer did not move
+        # a record that violates the DRAFT contract is rejected through the lane:
+        # the pinned fht.json admits schemaVersion "1.0" only.
+        md2 = deepcopy(r_on.metadata); md2["schemaVersion"] = "2.0"
+        @test !isempty(validate_record(md2; drafts = true))
+        @test isempty(validate_record(r_on.metadata; drafts = true))
+        rm(path)
+    end
+
+    @testset "suite pin enforced by the runner's guard" begin
+        # The real registry states complete suite pins for both drafts.
+        for t in draft_types()
+            pin = draft_suite_pin(t)
+            @test pin.stated && !pin.partial
+            @test occursin(r"\A[0-9a-f]{64}\z", pin.sha256)
+            @test occursin(r"\A[0-9a-f]{40}\z", pin.commit)
+        end
+        @test draft_suite_pin("FHT").vectors == 66 && draft_suite_pin("FHGM").vectors == 31
+        # The guard, exercised both ways on synthetic pins and manifests: verified,
+        # drift on one byte (byte-verified mutation), missing manifest, escaping path.
+        good = (type = "CTRL", repository = "x", stated = true, partial = false,
+                commit = "0"^40, manifest = "conformance/manifest.json",
+                sha256 = "", bytes = nothing, vectors = 1, rules = nothing)
+        tmp = mktempdir()
+        mkdir(joinpath(tmp, "conformance"))
+        mpath = joinpath(tmp, "conformance", "manifest.json")
+        write(mpath, JSON.json(Dict("vectors" => Any[Dict("id" => "a")])))
+        good = (good..., sha256 = FAIRBioHeaders.sha256_hex(read(mpath)))
+        @test FAIRBioHeaders.check_suite_against(good, tmp).state == "verified"
+        moved = read(mpath, String) * "x"
+        @test moved != read(mpath, String)              # the control is not a no-op
+        write(mpath, moved)
+        res = FAIRBioHeaders.check_suite_against(good, tmp)
+        @test res.state == "drift"
+        rm(mpath)
+        @test FAIRBioHeaders.check_suite_against(good, tmp).state == "absent"
+        escaping = (good..., manifest = "../outside/manifest.json")
+        @test FAIRBioHeaders.check_suite_against(escaping, tmp).state == "absent"
+        partial = (type = "CTRL", repository = "x", stated = false, partial = true,
+                   commit = "0"^40, manifest = "conformance/manifest.json", sha256 = nothing,
+                   bytes = nothing, vectors = nothing, rules = nothing)
+        @test FAIRBioHeaders.check_suite_against(partial, tmp).state == "partial"
+        unpinned = (type = "CTRL", repository = "x", stated = false, partial = false,
+                    commit = nothing, manifest = nothing, sha256 = nothing, bytes = nothing,
+                    vectors = nothing, rules = nothing)
+        @test FAIRBioHeaders.check_suite_against(unpinned, tmp).state == "unpinned"
+        # count drift: digest matches, the recorded vector count does not
+        write(mpath, JSON.json(Dict("vectors" => Any[Dict("id" => "a"), Dict("id" => "b")])))
+        many = (good..., sha256 = FAIRBioHeaders.sha256_hex(read(mpath)))
+        @test FAIRBioHeaders.check_suite_against(many, tmp).state == "drift"
+        rm(tmp; recursive = true)
+        # contract-pin check on the real vendored bytes vs a synthetic checkout
+        tmp2 = mktempdir()
+        mkpath(joinpath(tmp2, "development", "model"))
+        e = draft_entry("FHGM")
+        cp(e.path, joinpath(tmp2, e.source_path))
+        cp(e.overlay.path, joinpath(tmp2, e.overlay.source_path))
+        @test check_contract_pin("FHGM", tmp2).state == "verified"
+        bad_path = joinpath(tmp2, e.source_path)
+        write(bad_path, read(bad_path, String) * " ")
+        @test !cmp_similar(bad_path, e.path)
+        @test check_contract_pin("FHGM", tmp2).state == "drift"
+        rm(tmp2; recursive = true)
+    end
+
+    @testset "FHGM model-level checks (draft lane only)" begin
+        base = Dict{String, Any}(
+            "schema" => "https://w3id.org/fair-bioheaders/fhgff3/v0.5.0", "schemaVersion" => "1.1",
+            "annotation" => "Synthetic", "taxon" => Dict("name" => "Drosophila melanogaster"),
+            "version" => "1.0.0", "metadataAuthor" => Any[Dict("name" => "A Tester")],
+            "dateCreated" => "2026-01-01", "checksum" => HELPER_B64,
+            "genomeReference" => Dict("accession" => "SYNTH.1", "seqcol_id" => "S"^32),
+            "x-fhgm-models" => Any[Dict("modelId" => "model-1", "modelVersion" => "v1",
+                                        "featureId" => "FBgn0000001",
+                                        "reference" => Dict("genomeReference" =>
+                                            Dict("accession" => "SYNTH.1", "seqcol_id" => "S"^32)))])
+        v = check_fhgm_models(base)
+        @test v.status == "checked" && v.valid
+        @test any(occursin("unreleased draft", w) for w in v.warnings)
+        @test v.rules["K4"] == "not-supported-yet"
+        @test v.contract["commit"] == draft_entry("FHGM").commit
+        dup = deepcopy(base); push!(dup["x-fhgm-models"], deepcopy(base["x-fhgm-models"][1]))
+        v2 = check_fhgm_models(dup)
+        @test !v2.valid && v2.rules["K3"] == "reject" && any(occursin("Ambiguous model ID", e2) for e2 in v2.errors)
+        conflict = deepcopy(base)
+        conflict["x-fhgm-models"][1]["reference"] = Dict("genomeReference" => Dict("accession" => "OTHER.1", "seqcol_id" => "T"^32))
+        v3 = check_fhgm_models(conflict)
+        @test v3.rules["K5"] == "reject" && any(occursin("contradicts", e3) for e3 in v3.errors)
+        nocmp = deepcopy(base)
+        nocmp["x-fhgm-models"][1]["reference"] = Dict("annotates" => "B"^43 * "=")
+        @test check_fhgm_models(nocmp).rules["K5"] == "reject"
+        empty = deepcopy(base); empty["x-fhgm-models"] = Any[]
+        ve = check_fhgm_models(empty)
+        @test !ve.valid && ve.rules["K1"] == "reject"
+        v10 = deepcopy(base); v10["schemaVersion"] = "1.0"
+        @test check_fhgm_models(v10).rules["K1"] == "reject"
+        @test check_fhgm_models(base; base_ok = false).status == "not-checked"
+        # the R15 reading and the pinned overlay differ exactly as the registry says
+        v12 = deepcopy(base); v12["schema"] = "https://w3id.org/fair-bioheaders/fhgff3/v0.6.0"; v12["schemaVersion"] = "1.2"
+        @test check_fhgm_models(v12).rules["K1"] == "pass"
+        @test check_fhgm_models(v12; overlay = true).rules["K1"] == "reject"
+        # K6 against a supplied predecessor: resolvable, and unresolvable when withheld
+        prior = deepcopy(base); prior["checksum"] = "C"^42 * "A="
+        rev = deepcopy(base)
+        rev["x-fhgm-models"][1]["modelVersion"] = "v2"
+        rev["x-fhgm-models"][1]["predecessor"] = Dict("annotationChecksum" => prior["checksum"],
+                                                      "modelId" => "model-1", "modelVersion" => "v1")
+        @test check_fhgm_models(rev).rules["K6"] == "reject"          # history withheld
+        vk6 = check_fhgm_models(rev; predecessors = Any[(checksum = prior["checksum"], header = prior)])
+        @test vk6.valid && vk6.rules["K6"] == "resolvable"
+        @test vk6.records[1]["predecessor"]["verdict"] == "resolvable"
+        # the verdict block never joins the released result: separate by construction
+        cov = fhgm_rule_coverage()
+        @test "K4" in keys(cov["notSupported"]) && length(cov["implemented"]) == 6
+    end
 end
 
 @testset "shared conformance vectors (v0.6.0, 291 vectors)" begin

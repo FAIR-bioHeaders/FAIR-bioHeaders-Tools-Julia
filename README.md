@@ -13,8 +13,11 @@ release **v0.6.0** (contract versions FHR 2.1, FHP 1.2, FHGFF3 1.2), each record
 SHA-256 in `schemas/provenance.json`.
 
 FHT and FHGM have **no released contract** (rule V7 of `docs/SCHEMA-VERSIONS.md` keeps a
-draft out of every release form): this package recognises neither type, bundles no draft
-schema, and makes no `schemaVersion` or w3id claim for either.
+draft out of every release form): by default this package recognises neither type — a
+citation of either falls to rule V5 like any unknown value — and no `schemaVersion` or
+w3id claim exists for either anywhere in the repository. An explicit, per-call rule-V7
+opt-in (`drafts = true`) reads the *pinned* draft bytes under `drafts/`, warning on every
+record; see `docs/CAPABILITY-MATRIX.md`.
 
 ## What it does
 

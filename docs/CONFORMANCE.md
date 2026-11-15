@@ -69,3 +69,27 @@ compressed vector remains undecided.
 FHGFF3), uncompressed and compressed alike, on one host at one tag. That is the
 whole claim: it is not a family-parity claim (63 shared vectors are undecided here),
 and it says nothing about `bioheaders` writer behaviour, JSON-LD or microdata output.
+
+## Draft suites are separate evidence, not this ledger
+
+The rule-V7 lane (docs/CAPABILITY-MATRIX.md) additionally runs the development
+suites of the two *draft* types — FHT-Specification `conformance/` (66 vectors,
+rules C1-C3) at the pinned suite commit, and FHGM-Specification
+`development/conformance/` (31 vectors, rules K1-K6/B1) at its pinned suite commit —
+in a separate, labelled CI job (`draft-lane`) and through a local script:
+
+```sh
+git clone https://github.com/FAIR-bioHeaders/FHT-Specification /tmp/fht && \
+  git -C /tmp/fht checkout --detach 24d3b033ab951ef79ee9f6d17419d8ba700f1b0a
+git clone https://github.com/FAIR-bioHeaders/FHGM-Specification /tmp/fhgm && \
+  git -C /tmp/fhgm checkout --detach ac3d37b3033312844fc3151217731928ae33aa54
+julia --project=. scripts/draft_vectors.jl --fht /tmp/fht --fhgm /tmp/fhgm
+```
+
+Both suites are pinned twice over — contract bytes and suite manifest, each by commit
+plus SHA-256 in `drafts/provenance.json` — and the runner refuses to score anything
+whose manifest digest differs from the pin (exit 2, nothing reported as passed).
+Measured locally 2026-11-15: FHT 66/66 pass; FHGM 26 pass, 0 fail, 5 not-run (the
+K4-dependent vectors, declared `not-supported-yet`). These numbers **never** enter
+the 291/228/63 ledger above, and no pass here makes either type supported: FHT and
+FHGM have no released contract (rule V7).

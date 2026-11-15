@@ -37,10 +37,25 @@ consumer is implementation work; any change to what a contract *accepts* is a
 schema-contract change and belongs to FAIR-bioHeaders-Specification's cycle, not to
 a PR here.
 
-Rule V7: FHT and FHGM are drafts with **no released contract**. No `schemaVersion`,
-no w3id URL, no registry row, no bundled draft schema and no support claim for
-either — in code, tests, docs or prose. A citation of either falls to V5 like any
-other unknown value (there is a regression test pinning this behaviour).
+Rule V7: FHT and FHGM are drafts with **no released contract**. No `schemaVersion`, no
+w3id URL, no registry row and no support claim for either — in code, tests, docs or
+prose. By default a citation of either falls to V5 like any other unknown value (the
+regression tests pinning this behaviour stay, lane open or shut). This repository
+implements the V7 *opt-in* lane (maintainer direction of 2026-11-14,
+FAIR-bioHeaders-Specification#211 round 10; the sibling JavaScript, Java and R
+libraries have theirs — this file's earlier "no draft lane" scope decision is
+superseded deliberately, not silently): `drafts = true` per call reads the pinned bytes
+under `drafts/`, re-digesting against `drafts/provenance.json` on every load; every
+record read that way carries the V7 warning; the two development suites run only in the
+separate labelled `draft-lane` CI job and never join the shared 291. Two pins per type
+are enforced, not just recorded: the contract bytes (`commit`/`sha256`, checked by
+`scripts/draft_pins.jl --check-contract`) and the suite revision
+(`suiteCommit`/`suiteManifestSha256`, checked by `check_suite_pin` — the runner refuses
+to score a suite that does not verify, and `test/runtests.jl` proves the refusal on a
+one-byte mutation). FHGM is not a header type and must never be modelled as one. The
+draft-pin freshness job is advisory (`continue-on-error`) and nothing re-pins
+automatically: re-pinning is a deliberate, dated commit changing bytes, commit, digest
+and prose together.
 
 ## Hard technical constraints (measured, see docs/CAPABILITY.md)
 
