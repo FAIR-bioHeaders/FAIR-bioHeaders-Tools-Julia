@@ -47,7 +47,7 @@ end
 supported(t::AbstractString) = String[collect(get(REGISTRY["supported"], t, String[]))...]
 
 """
-    select_contract(schema_value, schema_version = nothing)
+    select_contract(schema_value, schema_version = nothing; drafts = false)
 
 Resolve a record's `schema` citation to `(type, ref, path)`:
 
@@ -58,15 +58,24 @@ Resolve a record's `schema` citation to `(type, ref, path)`:
 * V5: any other value is FHR, checked against the current FHR schema;
 * V6: an FHR record citing raw-main `fhr.json` whose `schemaVersion` is the number 1
   (not the string `"1"`, not a boolean) is read against the bundled v0.3.1 schema; it is
-  deprecated, not invalid, and `v6_warning` words the notice.
-
-No draft lane is implemented. FHT and FHGM have no released contract (rule V7 keeps a
-draft out of every release form), so a citation of either falls to rule V5 exactly as it
-did before V7 existed, and this package bundles no draft schema.
+  deprecated, not invalid, and `v6_warning` words the notice;
+* V7 (only with `drafts = true`): the raw-main citation of the owning development
+  repository of a pinned draft selects that draft's PINNED bytes, reported as
+  `("FHT", "draft", <drafts/fht-draft.json>)`. The lane is never implied; with
+  `drafts = false` (the default) this function behaves exactly as it did before the
+  lane existed. A release-shaped URL for a draft — a w3id URL or a release-tag URL for
+  a type the shared registry does not list — is not a draft citation and stays V5 with
+  the lane open or shut. FHGM is not a header type: its contract is applied to records
+  inside an FHGFF3 header (`src/fhgm.jl`), never selected as a file contract, so its
+  citation falls to V5 even with the lane open.
 """
-function select_contract(schema_value, schema_version = nothing)
+function select_contract(schema_value, schema_version = nothing; drafts::Bool = false)
     parsed = parse_citation(schema_value)
-    parsed === nothing && return ("FHR", "main", _path("FHR", "main"))
+    if parsed === nothing
+        draft_lane_of(schema_value; drafts = drafts) !== nothing &&
+            return ("FHT", "draft", _draft_path("FHT"))
+        return ("FHR", "main", _path("FHR", "main"))
+    end
     type, ref = parsed
     if ref == "main"
         type == "FHR" && _is_number_one(schema_version) &&
@@ -77,6 +86,15 @@ function select_contract(schema_value, schema_version = nothing)
     (entry === nothing || !haskey(entry, type)) &&
         throw(UnsupportedContract(String(schema_value), type, supported(type)))
     return (type, ref, _path(type, ref))
+end
+
+function _draft_path(type::AbstractString)
+    e = draft_entry(type)
+    e === nothing && throw(HeaderError("V7", "this build pins no draft of type $(type) (rule V7)", 0))
+    # load_draft re-verifies the vendored digest against drafts/provenance.json and
+    # raises on a mismatch: the pin is enforced at every selection, not just recorded.
+    load_draft(type)
+    return e.path
 end
 
 "The V6 number test: JSON and YAML read `1` and `1.0` as the number 1."
@@ -108,26 +126,44 @@ const _VALIDATORS = Dict{String, Any}()
 
 "Compile a bundled contract once; `assert_format = true` is what makes `date` and `uri` bind."
 function contract_validator(type::AbstractString, ref::AbstractString)
-    key = ref * "/" * type
+    key = if ref == "draft"
+        # The digest belongs in the cache key: a re-pin must never be served a validator
+        # compiled from the previous bytes within the same process.
+        e = draft_entry(type)
+        e === nothing && throw(HeaderError("V7", "this build pins no draft of type $(type) (rule V7)", 0))
+        ref * "/" * type * "/" * e.sha256
+    else
+        ref * "/" * type
+    end
     haskey(_VALIDATORS, key) && return _VALIDATORS[key]
-    v = compile_schema(read(_path(type, ref), String); assert_format = true)
+    text = if ref == "draft"
+        # The lane's bytes: load_draft re-verifies the digest against the registry and
+        # raises before returning anything that does not match its pin (rule V7).
+        JSON.json(load_draft(type))
+    else
+        read(_path(type, ref), String)
+    end
+    v = compile_schema(text; assert_format = true)
     _VALIDATORS[key] = v
     return v
 end
 
 """
-    validate_record(metadata[, schema_value, schema_version]) -> Vector{String}
+    validate_record(metadata[, schema_value, schema_version]; drafts = false) -> Vector{String}
 
 Check a record against the contract its own `schema` value selects. The result holds one
 description per finding and is empty when the record conforms. A rule V4 citation appears
 as the unsupported-version message, so callers can tell "not checked" from "checked and
-rejected".
+rejected". `drafts = true` opens the rule-V7 lane for a record citing a pinned draft
+(`select_contract` states the conditions); with the default `drafts = false` the result
+is exactly what it was before the lane existed.
 """
-function validate_record(metadata::AbstractDict, schema_value = nothing, schema_version = nothing)
+function validate_record(metadata::AbstractDict, schema_value = nothing, schema_version = nothing;
+                         drafts::Bool = false)
     value = schema_value === nothing ? get(metadata, "schema", nothing) : schema_value
     version = schema_version === nothing ? get(metadata, "schemaVersion", nothing) : schema_version
     type, ref, path = try
-        select_contract(value, version)
+        select_contract(value, version; drafts = drafts)
     catch e
         e isa UnsupportedContract && return [sprint(showerror, e)]
         rethrow()

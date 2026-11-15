@@ -23,9 +23,14 @@ What is native here and what is delegated:
   contracts. `JSONSchema.jl` is not used: it silently ignores `format`, `minContains`,
   `maxContains` and `\$ref` siblings, and falsely rejects a legal FHGFF3 genome link.
 
-FHT and FHGM have no released contract (rule V7 keeps a draft out of every release form), so
-this package recognizes neither: no draft schema is bundled, no `schemaVersion` or w3id URL
-is claimed, and a citation of either falls to rule V5 like any other value.
+FHT and FHGM have no released contract (rule V7 keeps a draft out of every release form),
+so by default this package recognizes neither: no `schemaVersion`, w3id URL, registry row
+or support claim exists for either, and a citation of either falls to rule V5 like any
+other value. The explicit rule-V7 draft lane (`drafts = true` per call, `src/drafts.jl`)
+is opt-in and never the default: it reads the *pinned* draft bytes vendored under
+`drafts/` (re-digested against `drafts/provenance.json` on every load), warns on every
+record read through it, and reports the draft suites separately from the shared 291
+vectors. Opening the lane grants no release form.
 
 ```julia
 julia> using FAIRBioHeaders
@@ -41,7 +46,9 @@ using SHA
 include("checksum.jl")
 include("reader.jl")
 include("gzip.jl")
+include("drafts.jl")
 include("contracts.jl")
+include("fhgm.jl")
 include("verify.jl")
 include("audit.jl")
 include("conformance.jl")
@@ -57,6 +64,13 @@ export
     # contracts
     bundled_contracts, select_contract, parse_citation, validate_record, contract_validator,
     UnsupportedContract, supported, v6_warning, link_scheme_warnings,
+    # rule V7 draft lane (opt-in; nothing here runs by default)
+    draft_registry, draft_types, draft_entry, draft_suite_pin, citation_index, draft_lane_of,
+    draft_warning, draft_support, load_draft, verify_draft_bytes, check_suite_pin,
+    check_contract_pin,
+    # FHGM model-level checks (draft lane only; separate from the FHGFF3 result)
+    FhgmVerdict, check_fhgm_models, admits_extension_fields, fhgm_rule_coverage,
+    fhgm_not_supported, MODELS_KEY,
     # bundle audit
     audit_bundled_schemas,
     # files and the shared vectors

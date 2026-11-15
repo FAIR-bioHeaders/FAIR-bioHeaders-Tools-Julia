@@ -94,7 +94,7 @@ jobs:
           for pair in conformanceSuiteUsed=true suiteVectors=291 vectorsDecided=228 \
                       vectorsPassed=228 vectorsFailed=0 vectorsUndecided=63 \
                       compressedVectorsDecided=11 jsonldUndecided=37 microdataUndecided=26 \
-                      schemaAuditFindings=0 assertionsFailed=0 assertionsErrored=0 \
+                      schemaAuditFindings=0 draftPinFindings=0 assertionsFailed=0 assertionsErrored=0 \
                       assertionsBroken=0 assertionsOther=0; do
             key=${pair%%=*}; want=${pair##*=}
             got=$(sed -n "s/^$key=//p" "$receipt")
@@ -104,9 +104,10 @@ jobs:
             fi
           done
           # Zero-test floor: the self-contained rule layers plus the native audit plus
-          # the vector assertions measured 87 on 2026-11-14; the floor sits just below
+          # the vector assertions measured 87 on 2026-11-14; the draft-lane testset
+          # brought the measured total to 147 on 2026-11-15. The floor sits just below
           # so a vanished layer fails. Raise deliberately with the suite.
-          floor=80
+          floor=140
           passed=$(sed -n 's/^assertionsPassed=//p' "$receipt")
           if [ "${passed:-0}" -lt "$floor" ]; then
             echo "only ${passed:-0} assertions passed (floor $floor)" >&2
@@ -159,3 +160,153 @@ jobs:
             echo "== $f"
             bioheaders verify ".spec-v0.6.0/$f"
           done
+
+  # Rule V7 draft lane, labelled DRAFT and explicitly NOT acceptance. This job never
+  # touches the 291-vector ledger: FHT and FHGM have no released contract, so their
+  # development suites run in their own job, against the bytes and the suite revisions
+  # `drafts/provenance.json` pins, and a pass here is "the pinned draft bytes behave
+  # through this lane", never "this type is supported" (docs/CAPABILITY-MATRIX.md).
+  # It stays native: Julia and curl of public repositories only, no Python.
+  draft-lane:
+    name: Draft lane against the owning repositories' development suites (labelled draft, not acceptance)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RECEIPT: ${{ github.workspace }}/receipt-draft-lane.properties
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12'
+
+      - uses: julia-actions/cache@v2
+
+      - name: Instantiate
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+
+      - name: Read the pinned draft commits out of this build's own registry
+        id: pins
+        run: julia --project=. scripts/draft_pins.jl --github-output
+
+      # Unauthenticated clones: the two owning repositories are public, and a full
+      # clone works whether or not the pinned commit is reachable from their default
+      # branch. Nothing here writes to them, and no credential is passed.
+      - name: Clone the two owning repositories and check out the CONTRACT commits
+        run: |
+          git clone --quiet "https://github.com/FAIR-bioHeaders/${{ steps.pins.outputs.fht-repo }}" .upstream/FHT-Specification
+          git -C .upstream/FHT-Specification checkout --detach --quiet "${{ steps.pins.outputs.fht-commit }}"
+          git clone --quiet "https://github.com/FAIR-bioHeaders/${{ steps.pins.outputs.fhgm-repo }}" .upstream/FHGM-Specification
+          git -C .upstream/FHGM-Specification checkout --detach --quiet "${{ steps.pins.outputs.fhgm-commit }}"
+          git -C .upstream/FHT-Specification rev-parse HEAD
+          git -C .upstream/FHGM-Specification rev-parse HEAD
+
+      - name: Confirm the checked-out draft bytes are the bytes this build pins
+        run: |
+          julia --project=. scripts/draft_pins.jl --check-contract .upstream/FHT-Specification FHT
+          julia --project=. scripts/draft_pins.jl --check-contract .upstream/FHGM-Specification FHGM
+
+      # The suite is a second, separate claim, pinned to a second revision: FHT's
+      # contract bytes are at one commit and its 66-vector C1-C3 suite manifest at a
+      # later one (whose tree still carries the retired manifest under the contract
+      # commit). Move only after the contract bytes above have been confirmed.
+      - name: Move each checkout to the SUITE revision its pin names
+        run: |
+          set -eu
+          move() {
+            dir=$1; rev=$2
+            if [ -n "$rev" ] && [ "$rev" != "$(git -C ".upstream/$dir" rev-parse HEAD)" ]; then
+              git -C ".upstream/$dir" fetch --quiet origin "$rev" || true
+              git -C ".upstream/$dir" checkout --detach --quiet "$rev"
+            fi
+            echo "$dir at $(git -C ".upstream/$dir" rev-parse HEAD)"
+          }
+          move FHT-Specification "${{ steps.pins.outputs.fht-suite-commit }}"
+          move FHGM-Specification "${{ steps.pins.outputs.fhgm-suite-commit }}"
+
+      - name: Confirm each development suite is the suite this build's pin names
+        run: |
+          julia --project=. scripts/draft_pins.jl --check-suite .upstream/FHT-Specification FHT
+          julia --project=. scripts/draft_pins.jl --check-suite .upstream/FHGM-Specification FHGM
+
+      # The guard above has to be shown capable of failing, or its verdict is
+      # decoration. Three controls on the case-sensitive Linux runner: the pinned
+      # manifest bytes are accepted; the same bytes with one character appended are
+      # refused as drift (and `cmp` proves the mutation is not a no-op); and a path
+      # that differs from the pinned one only in case is refused as absent, NOT
+      # resolved the way a case-insensitive filesystem would silently rescue it
+      # (workspace lesson 10: a green APFS run proves nothing about this control).
+      - name: Negative controls for the suite-pin guard
+        run: |
+          set -eu
+          good="$RUNNER_TEMP/suite-controls/good"
+          moved="$RUNNER_TEMP/suite-controls/one-byte"
+          cased="$RUNNER_TEMP/suite-controls/wrong-case"
+          rm -rf "$RUNNER_TEMP/suite-controls"
+          mkdir -p "$good/conformance" "$moved/conformance" "$cased/Conformance"
+          cp .upstream/FHT-Specification/conformance/manifest.json "$good/conformance/manifest.json"
+          cp .upstream/FHT-Specification/conformance/manifest.json "$moved/conformance/manifest.json"
+          cp .upstream/FHT-Specification/conformance/manifest.json "$cased/Conformance/manifest.json"
+          printf 'x' >> "$moved/conformance/manifest.json"
+          if cmp -s "$good/conformance/manifest.json" "$moved/conformance/manifest.json"; then
+            echo "control 2 is a vacuous no-op: the mutation changed zero bytes"
+            exit 1
+          fi
+          julia --project=. scripts/draft_pins.jl --check-suite "$good" | tee "$RUNNER_TEMP/good.log"
+          grep -q "verified -" "$RUNNER_TEMP/good.log"
+          if julia --project=. scripts/draft_pins.jl --check-suite "$moved" > "$RUNNER_TEMP/moved.log" 2>&1; then
+            echo "control 2 failed: a manifest with one extra byte was accepted as the pinned suite"
+            exit 1
+          fi
+          grep -q "digests to" "$RUNNER_TEMP/moved.log"
+          if julia --project=. scripts/draft_pins.jl --check-suite "$cased" > "$RUNNER_TEMP/cased.log" 2>&1; then
+            echo "control 3 failed: conformance/manifest.json resolved through a differently cased directory"
+            exit 1
+          fi
+          grep -q "holds no" "$RUNNER_TEMP/cased.log"
+          echo "suite-pin controls behaved: pinned bytes VERIFIED, one byte DRIFT, wrong case ABSENT"
+
+      - name: Run both development suites through the lane
+        run: |
+          set -o pipefail
+          julia --project=. scripts/draft_vectors.jl --fht .upstream/FHT-Specification --fhgm .upstream/FHGM-Specification --receipt "$RECEIPT" --verbose | tee draft-lane-evidence.txt
+
+      - name: Assert the draft receipt is complete and separate from the 291
+        run: |
+          set -e
+          receipt=${RECEIPT:?}
+          if [ ! -s "$receipt" ]; then
+            echo "missing $receipt - the draft runner did not complete" >&2
+            exit 1
+          fi
+          cat "$receipt"
+          # Counts are the pinned suites' own numbers: FHT 66 at suite 24d3b033, FHGM 31
+          # at suite ac3d37b3 with exactly the five K4-dependent vectors declared
+          # not-run (the boundary this library shares with the JavaScript sibling).
+          for pair in lane=draft-not-acceptance sharedLedgerTouched=false \
+                      fhtVectors=66 fhtPass=66 fhtFail=0 fhtNotRun=0 \
+                      fhgmVectors=31 fhgmPass=26 fhgmFail=0 fhgmNotRun=5 fhgmNotRunRule=K4; do
+            key=${pair%%=*}; want=${pair##*=}
+            got=$(sed -n "s/^$key=//p" "$receipt")
+            if [ "$got" != "$want" ]; then
+              echo "$key=$got, expected $want" >&2
+              exit 1
+            fi
+          done
+          # The receipt must name the pins it ran under - evidence that cannot quote
+          # its own revisions is not evidence.
+          for key in fhtContractCommit fhtContractSha256 fhtSuiteCommit fhtSuiteManifestSha256 \
+                     fhgmContractCommit fhgmContractSha256 fhgmSuiteCommit fhgmSuiteManifestSha256; do
+            grep -q "^$key=[0-9a-f]" "$receipt" || { echo "receipt field $key missing or not a hex pin" >&2; exit 1; }
+          done
+          echo "draft-lane receipt complete: every vector the lane can score agreed, the declared hole is exactly K4, and the shared 291 ledger was not touched"
+
+      - name: Upload the draft-lane evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: draft-lane-evidence
+          path: |
+            draft-lane-evidence.txt
+            receipt-draft-lane.properties
+          if-no-files-found: error

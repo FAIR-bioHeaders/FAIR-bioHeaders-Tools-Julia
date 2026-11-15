@@ -44,9 +44,11 @@ from a partial run. Compressed (gzip/BGZF) input is decided natively (`src/gzip.
 `schemas/` holds frozen, byte-for-byte copies of released contracts. Refreshing them is
 an explicit change: update the copies and `schemas/provenance.json` together (sha256,
 git blob, source tag/path per file), keep `registry.json` consistent with the
-specification's `schemas/versions.json`, and record which release was fetched. FHT and
-FHGM are drafts (rule V7) and take no registry row, schema file, `schemaVersion` or
-w3id claim here.
+specification's `schemas/versions.json`, and record which release was fetched. FHT and FHGM are drafts (rule V7) and take no registry row, released schema file,
+`schemaVersion` or w3id claim here; `schemas/` stays a directory of released contracts
+only. The pinned draft bytes live separately under `drafts/` with their own
+`drafts/provenance.json` (see AGENTS.md, "Rule V7"): changing them means bytes, commit,
+digests and prose in one deliberate commit, never an automated refresh.
 
 David and Adam are the maintainers and jointly hold schema and release authority
 ([GOVERNANCE](https://github.com/FAIR-bioHeaders/FAIR-bioHeaders-Specification/blob/main/GOVERNANCE.md)).

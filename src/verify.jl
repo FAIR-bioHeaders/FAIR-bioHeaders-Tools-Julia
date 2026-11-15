@@ -6,7 +6,9 @@
 `ok` is true only when the file parsed, its checksum matched the bytes it covers and —
 unless validation was declined — its metadata conformed to the contract its own `schema`
 value selects. `not_checked` records what was *not* checked, so an unsupported citation
-never reads as a pass.
+never reads as a pass. `fhgm` is `nothing` unless the rule-V7 draft lane was opened and
+the file is an FHGFF3 reading: it then holds the separate [`FhgmVerdict`](@ref), which
+never alters `ok` or `errors` (rule B1 reports beside the released result).
 """
 struct VerifyResult
     path::String
@@ -18,6 +20,15 @@ struct VerifyResult
     errors::Vector{String}
     warnings::Vector{String}
     not_checked::Vector{String}
+    fhgm::Union{Any, Nothing}
+end
+
+"Positional construction without the draft field: the lane-off shape is unchanged."
+function VerifyResult(path::AbstractString, kind::AbstractString, ok::Bool,
+                      stated::Union{String, Nothing}, computed::Union{String, Nothing},
+                      metadata::Union{Dict{String, Any}, Nothing},
+                      errors::Vector{String}, warnings::Vector{String}, not_checked::Vector{String})
+    VerifyResult(String(path), kind, ok, stated, computed, metadata, errors, warnings, not_checked, nothing)
 end
 
 function Base.show(io::IO, r::VerifyResult)
@@ -34,6 +45,10 @@ function Base.show(io::IO, r::VerifyResult)
     end
     for n in r.not_checked
         println(io, "  not checked: ", n)
+    end
+    if r.fhgm !== nothing
+        println(io, "  --- FHGM draft verdict (rule V7 lane; separate from the released result above) ---")
+        show(io, r.fhgm)
     end
 end
 
@@ -91,7 +106,7 @@ function read_fhr_file(path::AbstractString; kind::Union{Nothing, AbstractString
 end
 
 """
-    verify_file(path; kind = nothing, validate = true) -> VerifyResult
+    verify_file(path; kind = nothing, validate = true, drafts = false) -> VerifyResult
 
 Check one file end to end: gzip/BGZF input is decompressed first (R1 hashes the
 decompressed bytes), then header block and checksum line (R2, R5), checksum coverage and
@@ -101,15 +116,24 @@ the R14 link-scheme warnings.
 
 A rule V4 citation is reported under `not_checked`: the file was not checked against a
 different schema, which is what V4 requires.
+
+`drafts = true` opens the rule-V7 lane: an FHT record citing its owning repository's
+raw-main URL is read against the pinned draft bytes (the digest is re-verified against
+`drafts/provenance.json` first, and a mismatch raises), the V7 draft warning travels
+with every such record, and for FHGFF3 readings the nested `x-fhgm-models` records get a
+separate [`FhgmVerdict`](@ref) in `result.fhgm` that never alters the released result
+(B1). With the default `drafts = false` nothing in this paragraph runs: the result is
+byte-for-byte what it was before the lane existed.
 """
 function verify_file(path::AbstractString; kind::Union{Nothing, AbstractString} = nothing,
-                     validate::Bool = true)
+                     validate::Bool = true, drafts::Bool = false)
     k = kind === nothing ? kind_of(path) : String(kind)
     k === nothing && return VerifyResult(path, "?", false, nothing, nothing, nothing,
         ["cannot tell the header kind from the file name; pass kind"], String[], String[])
     errors, warnings, not_checked = String[], String[], String[]
     stated = computed = nothing
     metadata = nothing
+    fhgm = nothing
     try
         data = read_file_bytes(path)
         r = header_checksum(data, k)
@@ -121,7 +145,7 @@ function verify_file(path::AbstractString; kind::Union{Nothing, AbstractString} 
         append!(warnings, header.warnings)
         if validate
             version = get(metadata, "schemaVersion", nothing)
-            findings = validate_record(metadata, get(metadata, "schema", nothing), version)
+            findings = validate_record(metadata, get(metadata, "schema", nothing), version; drafts = drafts)
             if !isempty(findings) && occursin("unsupported schema version", first(findings))
                 push!(not_checked, first(findings))
             else
@@ -131,6 +155,17 @@ function verify_file(path::AbstractString; kind::Union{Nothing, AbstractString} 
             if _is_number_one(version) && get(metadata, "schema", "") isa AbstractString &&
                occursin(r"/main/fhr\.json\z", String(get(metadata, "schema", "")))
                 push!(warnings, v6_warning())
+            end
+            if drafts
+                lane = draft_lane_of(get(metadata, "schema", nothing); drafts = true)
+                lane !== nothing && push!(warnings, draft_warning(lane))
+                if k == "fhgff3" && MODELS_KEY in keys(metadata)
+                    # The lane's FHGM reading: separate by construction. The released
+                    # verdict above is its B1 precondition, never its consequence.
+                    base_ok = isempty(errors) && isempty(not_checked)
+                    fhgm = check_fhgm_models(metadata; base_ok = base_ok)
+                    append!(warnings, setdiff(fhgm.warnings, warnings))
+                end
             end
         else
             push!(not_checked, "contract validation (validate = false)")
@@ -144,5 +179,5 @@ function verify_file(path::AbstractString; kind::Union{Nothing, AbstractString} 
             push!(errors, string(typeof(e)) * ": " * string(e))
         end
     end
-    return VerifyResult(path, k, isempty(errors), stated, computed, metadata, errors, warnings, not_checked)
+    return VerifyResult(path, k, isempty(errors), stated, computed, metadata, errors, warnings, not_checked, fhgm)
 end
