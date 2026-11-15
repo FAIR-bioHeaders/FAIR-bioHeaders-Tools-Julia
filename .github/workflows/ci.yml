@@ -310,3 +310,44 @@ jobs:
             draft-lane-evidence.txt
             receipt-draft-lane.properties
           if-no-files-found: error
+
+  # Draft-pin freshness. The recorded commit and digest must be compared with what the
+  # owning repository publishes now, or a pin silently becomes history that reads like
+  # currency. A draft legitimately moves, so this job gates nothing: it reports drift
+  # with continue-on-error and never re-pins - re-pinning is a deliberate, dated commit
+  # (CONTRIBUTING.md, AGENTS.md). The report is advisory evidence about the DESCRIPTION
+  # of the draft; released acceptance never depends on it, and the lane keeps reading
+  # the vendored bytes whatever the answer.
+  draft-pin-freshness:
+    name: Draft-pin freshness against live raw main (advisory, labelled draft, not acceptance)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12'
+
+      - uses: julia-actions/cache@v2
+
+      - name: Instantiate
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+
+      - name: Compare every pinned draft target with the owning repository's live default branch
+        run: |
+          set -o pipefail
+          # Exits 0 all current; 1 at least one DRIFT (advisory: re-pin deliberately);
+          # 2 a probe was unusable - including a failed 404 control - so nothing is
+          # claimed either way. Every digest is taken from a no-follow 200; a redirect
+          # or a soft-200 portal page refuses the run rather than faking a drift.
+          julia --project=. scripts/draft_pin_freshness.jl | tee draft-pin-freshness.txt
+
+      - name: Upload the freshness report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: draft-pin-freshness
+          path: draft-pin-freshness.txt
+          if-no-files-found: warn
