@@ -50,6 +50,22 @@ only. The pinned draft bytes live separately under `drafts/` with their own
 `drafts/provenance.json` (see AGENTS.md, "Rule V7"): changing them means bytes, commit,
 digests and prose in one deliberate commit, never an automated refresh.
 
+## Changing the draft lane
+
+- `drafts/provenance.json` is the only place a draft pin is recorded; it is read and
+  enforced by code (`verify_draft_bytes` inside `Pkg.test`, `check_suite_pin` inside
+  `scripts/draft_vectors.jl`), never by documentation alone. A field nothing consumes
+  is not a control.
+- Re-pinning means the vendored bytes, the `commit`/`sha256` (and, for the suite,
+  `suiteCommit`/`suiteManifestSha256`/`suiteVectors`), the `verification` prose and
+  the `docs/CAPABILITY-MATRIX.md` counts all change in one dated commit. Nothing
+  re-pins automatically: `scripts/draft_pin_freshness.jl` reports live-main drift
+  (`MATCH`/`DRIFT`, advisory CI job with `continue-on-error`) and repairs nothing.
+- The contract pin and the suite pin are different claims. A statement about the
+  suite's rule labels (C1-C3, K1-K6) or vector counts is a statement about
+  `suiteCommit`, never about `commit`.
+- Draft vector counts never join the shared 291 in any table, receipt or prose.
+
 David and Adam are the maintainers and jointly hold schema and release authority
 ([GOVERNANCE](https://github.com/FAIR-bioHeaders/FAIR-bioHeaders-Specification/blob/main/GOVERNANCE.md)).
 Merging PRs, tagging releases and registering the package with the Julia General
