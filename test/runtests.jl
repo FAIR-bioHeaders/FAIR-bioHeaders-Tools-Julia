@@ -523,7 +523,7 @@ end
             @test occursin(r"\A[0-9a-f]{64}\z", pin.sha256)
             @test occursin(r"\A[0-9a-f]{40}\z", pin.commit)
         end
-        @test draft_suite_pin("FHT").vectors == 66 && draft_suite_pin("FHGM").vectors == 31
+        @test draft_suite_pin("FHT").vectors == 72 && draft_suite_pin("FHGM").vectors == 43
         # The guard, exercised both ways on synthetic pins and manifests: verified,
         # drift on one byte (byte-verified mutation), missing manifest, escaping path.
         good = (type = "CTRL", repository = "x", stated = true, partial = false,
@@ -603,10 +603,20 @@ end
         v10 = deepcopy(base); v10["schemaVersion"] = "1.0"
         @test check_fhgm_models(v10).rules["K1"] == "reject"
         @test check_fhgm_models(base; base_ok = false).status == "not-checked"
-        # the R15 reading and the pinned overlay differ exactly as the registry says
+        # The R15 reading and the pinned overlay differ exactly as the registry says.
+        # Re-pinned 2026-11-15, the overlay admits EITHER released FHGFF3 identity as a
+        # CLOSED citation/version pair (v0.5.0 with "1.1", v0.6.0 with "1.2"); what it
+        # newly refuses - and R15 alone does not - is a header whose citation and stated
+        # version contradict each other.
         v12 = deepcopy(base); v12["schema"] = "https://w3id.org/fair-bioheaders/fhgff3/v0.6.0"; v12["schemaVersion"] = "1.2"
         @test check_fhgm_models(v12).rules["K1"] == "pass"
-        @test check_fhgm_models(v12; overlay = true).rules["K1"] == "reject"
+        @test check_fhgm_models(v12; overlay = true).rules["K1"] == "pass"   # consistent 0.6.0/1.2 pair: admissible since the 2026-11-15 overlay
+        @test check_fhgm_models(base; overlay = true).rules["K1"] == "pass"  # consistent 0.5.0/1.1 pair (base cites v0.5.0 with schemaVersion 1.1)
+        mixed = deepcopy(base); mixed["schemaVersion"] = "1.2"               # v0.5.0 citation claiming 1.2
+        @test check_fhgm_models(mixed).rules["K1"] == "pass"                 # R15 alone admits it (1.2 >= 1.1)
+        @test check_fhgm_models(mixed; overlay = true).rules["K1"] == "reject"
+        mixed2 = deepcopy(v12); mixed2["schemaVersion"] = "1.1"              # v0.6.0 citation claiming 1.1
+        @test check_fhgm_models(mixed2; overlay = true).rules["K1"] == "reject"
         # K6 against a supplied predecessor: resolvable, and unresolvable when withheld
         prior = deepcopy(base); prior["checksum"] = "C"^42 * "A="
         rev = deepcopy(base)
