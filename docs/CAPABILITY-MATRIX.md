@@ -1,7 +1,7 @@
 # Capability matrix: type × operation × serialization × contract version
 
-Status date: **2026-11-15** (rule-V7 draft lane added; earlier date 2026-11-14
-covered the native-CI release-only build). This is the honest capability statement of
+Status date: **2026-11-15** (rule-V7 draft lane added and re-pinned the same day,
+digest-first; earlier date 2026-11-14 covered the native-CI release-only build). This is the honest capability statement of
 `FAIRBioHeaders.jl`. It exists so that a gap is a named row rather than an
 inference, and so that no summary of "supports FHR, FHP, FHGFF3, FHT and FHGM"
 can be read into this library: **the five-type family is not five types of
@@ -27,7 +27,7 @@ the 291.
 | operation | FHR | FHP | FHGFF3 | FHT | FHGM |
 | --- | --- | --- | --- | --- | --- |
 | read the embedded header block | yes | yes | yes | draft lane (`;~` FASTA block like FHR; issue #2; no released contract exists and none is claimed) | no - not a file-bound header type; FHGM records ride inside an FHGFF3 header under `x-fhgm-models` |
-| verify the SHA-512/256 checksum over exact bytes (R1-R5) | yes | yes | yes | draft lane (all 66 pinned FHT suite vectors exercise this byte layer) | n/a - integrity of an FHGM-carrying file is the enclosing FHGFF3 header's checksum, which is `yes` above |
+| verify the SHA-512/256 checksum over exact bytes (R1-R5) | yes | yes | yes | draft lane (all 72 pinned FHT suite vectors exercise this byte layer) | n/a - integrity of an FHGM-carrying file is the enclosing FHGFF3 header's checksum, which is `yes` above |
 | select the contract (rules V1-V6) | yes | yes | yes | draft lane: the owning repository's raw-main citation selects the pinned bytes with `drafts = true`; a release-shaped URL (w3id or tag) for FHT stays V5 with the lane open or shut | n/a - FHGM records carry no `schema` field; the file is routed by its FHGFF3 citation |
 | validate against the contract (draft/2020-12, formats bound) | yes | yes | yes | draft lane (against the pinned `drafts/fht-draft.json`, digest re-verified on load) | draft lane, partial: B1 and K1, K2, K3, K5, K6 implemented in `src/fhgm.jl`; **K4 `not-supported-yet`** - resolving a `featureId` needs the GFF3 feature layer, which belongs to `gff3-validator`; reason in §4.2 |
 | rule R11 record-marker warning | yes | yes | n/a (GFF3 lines are not FASTA) | draft lane | no |
@@ -66,8 +66,8 @@ re-digest-checked against `schemas/provenance.json` on every test run
 | FHR | `1` (v0.3.0/v0.3.1), `2.0` (v0.4.0-v0.4.2), `2.1` (v0.5.0/v0.6.0) | `current/fhr.json` = v0.6.0 bytes (= v0.5.0) | 98 `fasta` vectors (incl. the rule V6 FHR 1 paths), selection tests |
 | FHP | `1.0` (v0.4.0-v0.4.2), `1.1` (v0.5.0), `1.2` (v0.6.0) | `current/fhp.json` | 36 `fhp-fasta` vectors, version-gated conditional tests |
 | FHGFF3 | `1.0` (v0.4.0-v0.4.2), `1.1` (v0.5.0), `1.2` (v0.6.0) | `current/fhgff3.json` | 38 `fhgff3` vectors, `annotates`-form tests |
-| FHT | none - **no released contract** (rule V7: no schemaVersion, no registry row, no w3id, no support claim). `drafts/fht-draft.json` is a digest-pinned *draft*, not a bundled contract: it appears in no `registry.json` or `versions.json`, and is read only through the opt-in lane | none - `main` is never consulted at run time | the V7 default-off regression tests; lane selection/warning tests; 66/66 vectors of the pinned FHT-Specification suite at suite `24d3b033`, contract `226f923c` |
-| FHGM | none - **no released contract, and not a header type**: records ride inside an FHGFF3 header under `x-fhgm-models`; `drafts/fhgm-model-draft.json` + transport overlay are digest-pinned drafts under the same discipline | none | 26 pass / 0 fail / 5 not-run (`K4`) of the 31 pinned FHGM-Specification suite vectors at `ac3d37b3`; see §4.2 |
+| FHT | none - **no released contract** (rule V7: no schemaVersion, no registry row, no w3id, no support claim). `drafts/fht-draft.json` is a digest-pinned *draft*, not a bundled contract: it appears in no `registry.json` or `versions.json`, and is read only through the opt-in lane | none - `main` is never consulted at run time | the V7 default-off regression tests; lane selection/warning tests; 72/72 vectors of the pinned FHT-Specification suite at suite `09dafdf8`, contract `226f923c` (contract bytes unchanged by the 2026-11-15 re-pin) |
+| FHGM | none - **no released contract, and not a header type**: records ride inside an FHGFF3 header under `x-fhgm-models`; `drafts/fhgm-model-draft.json` + transport overlay are digest-pinned drafts under the same discipline | none | 35 pass / 0 fail / 8 not-run (`K4`) of the 43 pinned FHGM-Specification suite vectors at suite `c503ecf3` (record contract `bf1553ca` unchanged by the 2026-11-15 re-pin; the transport overlay bytes did move); see §4.2 |
 
 Releases `v0.4.1`/`v0.4.2` repeat the `v0.4.0` bytes and `v0.6.0`'s `fhr.json`
 repeats `v0.5.0`'s: release identity and byte identity are recorded as separate
@@ -87,16 +87,22 @@ axes in `schemas/provenance.json`.
    rules K1-K6 with the boundary B1. `src/fhgm.jl` implements B1 (a precondition, not
    a rule: no verdict exists on a file whose released header or exact-byte checksum
    does not hold), K1 (transport on the published R15 reading - extension fields from
-   FHGFF3 1.1; `overlay = true` additionally applies the pinned draft's narrower
-   v0.5.0 transport pin, as the upstream checker does), K2 (every record against the
-   pinned record contract), K3 (modelId uniqueness, reported as ambiguous), K5
+   FHGFF3 1.1; `overlay = true` additionally applies the pinned draft's transport
+   overlay, which since the 2026-11-15 re-pin pairs the v0.5.0 citation with
+   `schemaVersion` "1.1" and the v0.6.0 citation with "1.2" as two closed branches,
+   refusing contradictory pairings, as the upstream checker does), K2 (every record
+   against the pinned record contract), K3 (modelId uniqueness, reported as
+   ambiguous), K5
    (record-reference agreement with the file's genome link) and K6 (predecessor
    resolution against explicitly supplied prior snapshots only). **K4 is
    `not-supported-yet`**: resolving a `featureId` percent-decoded to exactly one local
    gene row needs the GFF3 feature layer, which this library does not read (it belongs
    to `gff3-validator`). A caller that supplies `gene_ids` can close K4 itself; the
-   draft-suite runner does not, and the five K4-dependent vectors of the pinned suite
-   are reported not-run with that reason - never as passes. The same boundary is what
+   draft-suite runner does not, and the eight K4-dependent vectors of the pinned suite
+   are reported not-run with that reason - never as passes (the three new ones at the
+   2026-11-15 re-pin are `dmel-target-absent`, `dmel-target-transcript-row` and
+   `dmel-snapshot-v1`, the last an expected-valid snapshot whose rules list cites K4,
+   so it stays not-run rather than being credited). The same boundary is what
    the sibling JavaScript library declares; the Java library goes further and reads
    the feature rows, which is a difference we record rather than hide.
 3. **GFA containers for a future FHT lane: out of the draft suite by
@@ -124,11 +130,13 @@ axes in `schemas/provenance.json`.
   all passing; the 63 remainder are declared not-run with reason 1 above
   (`docs/CONFORMANCE.md`).
 * Draft evidence (separate, labelled, never added to the 291, never a support
-  claim): FHT **66 pass / 0 fail / 0 not-run of 66** at suite `24d3b033`; FHGM
-  **26 pass / 0 fail / 5 not-run of 31** at suite `ac3d37b3`, the five being
-  exactly the K4-dependent vectors of reason 2 above. Measured locally on
-  2026-11-15 (macOS/arm64, Julia 1.13.2, this tree); the CI `draft-lane` job
-  re-derives the same numbers on Linux and additionally enforces the case-control
+  claim): FHT **72 pass / 0 fail / 0 not-run of 72** at suite `09dafdf8` (contract
+  `226f923c`, bytes unchanged); FHGM **35 pass / 0 fail / 8 not-run of 43** at suite
+  `c503ecf3`, the eight being exactly the K4-dependent vectors of reason 2 above.
+  Re-measured locally on 2026-11-15 at the same-day deliberate re-pin (macOS/arm64,
+  Julia 1.13.2, this tree; the superseded pin pair measured 66 of 66 and 26/0/5-of-31
+  on the same host); the CI `draft-lane`
+  job re-derives the same numbers on Linux and additionally enforces the case-control
   of the suite-pin guard, which a case-insensitive filesystem cannot prove.
 * Every gap is a named row here with its reason. A missing capability is
   reported as missing; nothing is inferred from the package's function names or

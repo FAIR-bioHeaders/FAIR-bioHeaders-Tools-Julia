@@ -105,7 +105,9 @@ jobs:
           done
           # Zero-test floor: the self-contained rule layers plus the native audit plus
           # the vector assertions measured 87 on 2026-11-14; the draft-lane testset
-          # brought the measured total to 147 on 2026-11-15. The floor sits just below
+          # brought the measured total to 147 on 2026-11-15, and the re-pin the same
+          # day - which added the overlay's closed citation/version pair controls -
+          # measured 151. The floor sits just below
           # so a vanished layer fails. Raise deliberately with the suite.
           floor=140
           passed=$(sed -n 's/^assertionsPassed=//p' "$receipt")
@@ -207,9 +209,12 @@ jobs:
           julia --project=. scripts/draft_pins.jl --check-contract .upstream/FHGM-Specification FHGM
 
       # The suite is a second, separate claim, pinned to a second revision: FHT's
-      # contract bytes are at one commit and its 66-vector C1-C3 suite manifest at a
-      # later one (whose tree still carries the retired manifest under the contract
-      # commit). Move only after the contract bytes above have been confirmed.
+      # contract bytes sit at 226f923c and its 72-vector C1-C3 suite manifest at the
+      # later 09dafdf8. FHGM's contract commit advanced WITH its transport overlay
+      # (the bytes changed; the record contract did not), so contract and suite now
+      # coincide at c503ecf3 for that type - a coincidence of measurement, not a
+      # merging of the claims: the two keys stay separate and both are checked.
+      # Move only after the contract bytes above have been confirmed.
       - name: Move each checkout to the SUITE revision its pin names
         run: |
           set -eu
@@ -280,12 +285,16 @@ jobs:
             exit 1
           fi
           cat "$receipt"
-          # Counts are the pinned suites' own numbers: FHT 66 at suite 24d3b033, FHGM 31
-          # at suite ac3d37b3 with exactly the five K4-dependent vectors declared
-          # not-run (the boundary this library shares with the JavaScript sibling).
+          # Counts are the pinned suites' own numbers, re-measured at the 2026-11-15
+          # re-pin: FHT 72 at suite 09dafdf8, FHGM 43 at suite c503ecf3 with exactly
+          # the eight K4-dependent vectors declared not-run (the boundary this library
+          # shares with the JavaScript sibling; three are new - dmel-target-absent,
+          # dmel-target-transcript-row, and dmel-snapshot-v1, an expected-valid
+          # snapshot whose rules list cites K4, so the runner scores nothing it cannot
+          # prove and reports it not-run rather than pass).
           for pair in lane=draft-not-acceptance sharedLedgerTouched=false \
-                      fhtVectors=66 fhtPass=66 fhtFail=0 fhtNotRun=0 \
-                      fhgmVectors=31 fhgmPass=26 fhgmFail=0 fhgmNotRun=5 fhgmNotRunRule=K4; do
+                      fhtVectors=72 fhtPass=72 fhtFail=0 fhtNotRun=0 \
+                      fhgmVectors=43 fhgmPass=35 fhgmFail=0 fhgmNotRun=8 fhgmNotRunRule=K4; do
             key=${pair%%=*}; want=${pair##*=}
             got=$(sed -n "s/^$key=//p" "$receipt")
             if [ "$got" != "$want" ]; then

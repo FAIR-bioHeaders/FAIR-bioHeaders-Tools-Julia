@@ -24,10 +24,12 @@
 # * K1 transport: the header states a `schemaVersion` that admits extension fields -
 #   1.1 or later, per R15 - and carries one or more records under the single top-level
 #   `x-fhgm-models` key. `overlay = true` additionally applies the pinned transport
-#   overlay, which is narrower: it names the v0.5.0 FHGFF3 citation and `schemaVersion`
-#   "1.1" outright. That pin is the upstream checker's, so it is opt-in here rather
-#   than the default, and a current v0.6.0 FHGFF3 1.2 header is accepted by the R15
-#   reading and refused by the overlay.
+#   overlay, which binds citation and version together: as re-pinned on 2026-11-15 it
+#   admits the v0.5.0 FHGFF3 citation only with `schemaVersion` "1.1", and the v0.6.0
+#   citation only with "1.2" - two closed branches, no fallback - so a header whose
+#   citation and stated version contradict each other passes the R15 reading and is
+#   refused by the overlay. That pairing is the upstream checker's own rule
+#   (FHGM-Specification PR #17), so it stays opt-in here rather than the default.
 # * K2 record shape: every record validates against the pinned record contract (draft
 #   2020-12, `assert_format = true`), whose required set is modelId, modelVersion,
 #   featureId and reference.
@@ -399,7 +401,9 @@ verdict it returns never joins the released-contract errors of any reading.
 * `base_ok`: the caller's released FHGFF3 verdict, schema and checksum together. B1:
   without a base that holds there is no FHGM verdict, only `not-checked`;
 * `overlay`: also apply the pinned transport overlay, the way the upstream draft
-  checker does (its v0.5.0 pin is narrower than the published R15 reading);
+  checker does (as re-pinned 2026-11-15 it pairs citation with version - v0.5.0 with
+  "1.1", v0.6.0 with "1.2", as two closed branches - so a contradictory pairing the
+  published R15 reading admits is refused here);
 * `predecessors`: prior snapshots K6 may resolve against, each
   `(checksum = ..., header = ...)`; each is itself run through K1-K3 and K5 before any
   pointer is judged against it;
