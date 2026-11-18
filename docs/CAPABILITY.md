@@ -208,6 +208,17 @@ concatenation, truncated-stream rejection — is pinned by a self-contained test
 **Result: `CodecZlib` is the accepted dependency; the compiled-boundary rationale and
 its isolation are above. `Inflate` must not be substituted.**
 
+Since 2026-11-18 the input is streamed rather than read whole: `foreach_chunk` in
+`src/gzip.jl` reads the file (or each gzip member, through `GzipDecompressorStream` with
+`stop_on_end`) in 64 KiB chunks, and the byte layer (`scan_header` in `src/checksum.jl`)
+hashes them as they pass, holding only the header lines. A 32 MiB FASTA verifies in well
+under 16 MiB of allocation (pinned in `test/runtests.jl`). Between and after members the
+reader behaves like Python's `gzip` module, which the reference toolkit uses: zero bytes
+are padding and are skipped, and any other trailing bytes must start another member. One
+difference is kept on purpose: zlib verifies the optional gzip header CRC (FHCRC) and
+rejects a member whose header CRC is wrong, where Python skips the field unchecked. Such a
+member is corrupt, so this reader reports it under R1 rather than accept it.
+
 ## Julia version floor: measured, not copied
 
 `julia = "1.10"` was the salvaged declaration and is **wrong for this package**: the

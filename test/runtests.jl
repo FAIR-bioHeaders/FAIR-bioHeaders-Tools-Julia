@@ -112,6 +112,27 @@ end
 
 data_parts(data::AbstractString) = split(chomp(data), "\n")
 
+"Header lines for a record: each value written as JSON, which YAML reads as a flow value."
+record_meta(d::AbstractDict) = String[k * ": " * JSON.json(v) for (k, v) in sort!(collect(d); by = first) if k != "checksum"]
+
+"""Like `build_file`, but the checksum line goes between `before` and `after` header lines,
+so a test can place it where it is not the record's checksum."""
+function build_split(before::Vector{String}, after::Vector{String}, data::String; prefix = ";~")
+    head = [prefix * m for m in vcat(before, after)]
+    body = String.(data_parts(data))
+    covered = join(vcat(head, body), "\n") * "\n"
+    digest = base64encode(sha512_256_bytes(Vector{UInt8}(covered)))
+    lines = vcat([prefix * m for m in before], [prefix * "checksum: " * digest],
+                 [prefix * m for m in after], body)
+    return join(lines, "\n") * "\n", digest
+end
+
+function write_temp(text; suffix = "")
+    path = tempname() * suffix
+    write(path, text)
+    return path
+end
+
 # --------------------------------------------------------------------------------------
 # Test-result introspection for the receipt. Types are matched by name because the set
 # of Test result types has varied across Julia lines (there is no `Test.Skip` on 1.13);
@@ -280,6 +301,138 @@ end
         @test rb === nothing || !rb.ok
         rm(badgz)
         rm(plain); rm(gz)
+    end
+end
+
+@testset "verifier: containers, checksum line, V4, limits, streaming" begin
+    gff_data = "ctg1\t.\tregion\t1\t10\t.\t+\t.\tID=ctg1\n"
+    @testset "each header type in its own containers only" begin
+        for (rec, kind, ok) in [(base_record(), "fasta", true), (base_record(), "gfa", true),
+                                (fhp_record(), "fasta", true), (fhp_record(), "fhp-fasta", true),
+                                (fhg_record(), "fhgff3", true),
+                                (fhg_record(), "fasta", false), (fhg_record(), "gfa", false),
+                                (fhp_record(), "gfa", false), (fhp_record(), "fhgff3", false),
+                                (base_record(), "fhgff3", false)]
+            prefix = kind in ("gfa", "fhgff3") ? "#~" : ";~"
+            data = kind == "fasta" || kind == "fhp-fasta" ? ">c\nACGT\n" : kind == "gfa" ? "S\t1\tACGT\n" : gff_data
+            text, digest = build_file(record_meta(rec), data; prefix = prefix)
+            if kind == "fhgff3"                  # line 1 is covered too: restate the digest
+                text = "##gff-version 3\n" * text
+                fixed = scan_header(Vector{UInt8}(text), kind).computed
+                text, digest = replace(text, digest => fixed), fixed
+            end
+            r = verify_file(write_temp(text); kind = kind)
+            @test r.ok == ok
+            ok || @test any(occursin("incompatible with", e) for e in r.errors)
+            @test r.computed == digest
+        end
+        @test container_findings(Dict("schema" => "https://w3id.org/fair-bioheaders/fhp/v0.6.0"), "gfa") ==
+              ["FHP metadata is incompatible with GFA; expected FHR metadata (FORMAT.md: each header type has its containers)"]
+        @test isempty(container_findings(Dict("schema" => "anything else"), "gfa"))   # V5: FHR
+    end
+    @testset "the checksum line read alone is the record's checksum" begin
+        meta = record_meta(base_record())
+        for (open_, close_) in [("x-note: \"start", "end\""), ("x-note: 'start", "end'"), ("x-note: {a: 1,", "}")]
+            text, _ = build_split(vcat(meta, [open_]), [close_, "\"checksum\": $HELPER_B64"], ">c\nA\n")
+            r = verify_file(write_temp(text); kind = "fasta")
+            @test !r.ok
+            @test any(occursin("single-line scalar (rule R5)", e) for e in r.errors)
+            @test r.stated == r.computed                  # the digest itself matches: only R5 catches it
+        end
+        text, _ = build_split(meta[1:2], meta[3:end], ">c\nA\n")   # anywhere in the block is fine
+        @test verify_file(write_temp(text); kind = "fasta").ok
+    end
+    @testset "an unsupported version is not valid (V4)" begin
+        for cite in ["https://w3id.org/fair-bioheaders/fhr/v0.2.0",
+                     "https://raw.githubusercontent.com/FAIR-bioHeaders/FAIR-bioHeaders-Specification/refs/heads/main/fhr.json",
+                     "https://raw.githubusercontent.com/FAIR-bioHeaders/FAIR-bioHeaders-Specification/refs/tags/v0.4.0/fhr.json"]
+            rec = base_record()
+            rec["schema"] = cite
+            text, _ = build_file(record_meta(rec), ">c\nA\n")
+            r = verify_file(write_temp(text); kind = "fasta")
+            @test !r.ok && isempty(r.errors)
+            @test any(occursin("unsupported schema version", n) for n in r.not_checked)
+            shown = sprint(show, r)
+            @test occursin("unsupported schema version (rule V4)", shown) && !occursin("]: valid", shown)
+            @test_throws UnsupportedContract select_contract(cite)
+        end
+        @test parse_citation("https://raw.githubusercontent.com/FAIR-bioHeaders/FAIR-bioHeaders-Specification/refs/heads/main/fhr.json") ==
+              ("FHR", "refs/heads/main")
+    end
+    @testset "R6: header lines must be valid UTF-8" begin
+        for bad in (UInt8[0xc0, 0x80], UInt8[0xed, 0xa0, 0x80], UInt8[0xff])   # overlong, surrogate, stray
+            bytes = vcat(Vector{UInt8}(";~genome: x"), bad, Vector{UInt8}("\n;~checksum: $HELPER_B64\n>c\nA\n"))
+            e = try read_fhr_file(bytes, "fasta"); nothing catch err; err end
+            @test e isa HeaderError && e.rule == "R6"
+        end
+    end
+    @testset "limits: 1 MiB and 10,000 header lines" begin
+        lines(n) = vcat(["genome: x"], fill("# c", n - 2))
+        text, _ = build_file(lines(10_000), ">c\nA\n")         # 10,000 lines with the checksum line
+        @test length(scan_header(Vector{UInt8}(text), "fasta").header) == 10_000
+        text, _ = build_file(lines(10_001), ">c\nA\n")
+        e = try scan_header(Vector{UInt8}(text), "fasta"); nothing catch err; err end
+        @test e isa HeaderError && e.rule == "limits"
+        text, _ = build_file(["genome: " * "x"^(2^20)], ">c\nA\n")
+        r = verify_file(write_temp(text); kind = "fasta")
+        @test !r.ok && any(occursin("1 MiB", e) for e in r.errors)
+        # a large data section is not a header: no limit applies to it
+        text, digest = build_file(["genome: x"], ">c\n" * "ACGT"^(2^19) * "\n")
+        @test verify_file(write_temp(text); kind = "fasta").computed == digest
+    end
+    @testset "streaming: any chunking gives the same result, memory stays bounded" begin
+        text, digest = build_file(record_meta(base_record()), ">c\r\nAC\rGT\r\n>d\nAAA\n")
+        text = replace(text, "\n;~" => "\r\n;~")                 # CRLF header lines too
+        bytes = Vector{UInt8}(text)
+        want = scan_header(bytes, "fasta")
+        for sz in (1, 2, 3, 5, 7, 64)
+            st = FAIRBioHeaders.HeaderScan("fasta")
+            for i in 1:sz:length(bytes)
+                FAIRBioHeaders._feed!(st, bytes[i:min(i + sz - 1, end)])
+            end
+            FAIRBioHeaders._finish!(st)
+            @test st.computed == want.computed && length(st.header) == length(want.header)
+        end
+        @test want.computed == header_checksum(bytes, "fasta").computed
+        big = tempname() * ".fhr.fasta"
+        open(big, "w") do io
+            meta, _ = build_file(record_meta(base_record()), ">c\nA\n")
+            write(io, replace(meta, r">c\nA\n\z" => ""))
+            write(io, ">c\n")
+            line = "ACGT"^20 * "\n"
+            for _ in 1:400_000                                   # about 32 MiB of sequence
+                write(io, line)
+            end
+        end
+        verify_file(big)                                         # compile first
+        bytes_allocated = @allocated verify_file(big)
+        @test bytes_allocated < 16 * 2^20                        # far below the file size
+        @test filesize(big) > 30 * 2^20
+        rm(big)
+    end
+    @testset "gzip: zero padding as Python's gzip reads it; FHCRC still checked" begin
+        text, digest = build_file(record_meta(base_record()), ">c\nA\n")
+        gz = transcode(GzipCompressor, Vector{UInt8}(text))
+        r = verify_file(write_temp(vcat(gz, zeros(UInt8, 512)); suffix = ".fhr.fasta.gz"))
+        @test r.ok && r.computed == digest
+        mm = vcat(gz, zeros(UInt8, 7), transcode(GzipCompressor, UInt8[]))   # padding between members
+        @test decompress_gzip(mm) == Vector{UInt8}(text)
+        r = verify_file(write_temp(vcat(gz, Vector{UInt8}("trailing garbage")); suffix = ".fhr.fasta.gz"))
+        @test !r.ok && any(startswith(e, "R1") for e in r.errors)
+        # zlib checks the optional header CRC (Python's gzip skips it): a wrong one is R1
+        fhcrc = vcat(gz[1:3], [gz[4] | 0x02], gz[5:10], UInt8[0x00, 0x00], gz[11:end])
+        r = verify_file(write_temp(fhcrc; suffix = ".fhr.fasta.gz"))
+        @test !r.ok && any(occursin("header crc", lowercase(e)) for e in r.errors)
+    end
+    @testset "GFA: blank lines may hold spaces; a byte order mark is R7" begin
+        text, digest = build_file(["genome: x", "  "], "S\t1\tACGT\n"; prefix = "#~")
+        text = replace(text, "#~genome: x\n" => "#~genome: x\n \t \n")    # whitespace-only line
+        r = verify_file(write_temp(text); kind = "gfa")
+        @test isempty(r.errors) || !any(occursin("R10", e) for e in r.errors)
+        @test isempty(scan_header(Vector{UInt8}(text), "gfa").late)
+        bom = vcat(UInt8[0xef, 0xbb, 0xbf], Vector{UInt8}(text))
+        r = verify_file(write_temp(bom); kind = "gfa")
+        @test !r.ok && any(startswith(e, "R7") for e in r.errors)
     end
 end
 

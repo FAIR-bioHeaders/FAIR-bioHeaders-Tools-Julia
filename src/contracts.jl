@@ -31,7 +31,10 @@ bundled_contracts() = JSON.parsefile(joinpath(SCHEMA_DIR, "registry.json"))
 
 const REGISTRY = bundled_contracts()
 
-const _RAW = r"\Ahttps://raw\.githubusercontent\.com/FAIR-bioHeaders/(?:FHR|FAIR-bioHeaders)-Specification/([^/]+)/((?:fhr|fhp|fhgff3))\.json\z"
+# The ref is kept whole, like the reference toolkit's `(.+?)`: a multi-segment ref such as
+# `refs/heads/main` or `refs/tags/v0.4.0` is a FAIR-bioHeaders citation of an unsupported
+# version (V4), not a non-citation that falls to V5.
+const _RAW = r"\Ahttps://raw\.githubusercontent\.com/FAIR-bioHeaders/(?:FHR|FAIR-bioHeaders)-Specification/(.+?)/(fhr|fhp|fhgff3)\.json\z"
 const _W3ID = r"\Ahttps://w3id\.org/fair-bioheaders/(fhr|fhp|fhgff3)/(v[0-9]+\.[0-9]+\.[0-9]+)/?\z"
 
 "Parse a `schema` citation into `(type, ref)`; `nothing` when no rule V1-V3 form matches."

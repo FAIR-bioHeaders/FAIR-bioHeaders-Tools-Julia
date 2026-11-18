@@ -57,8 +57,9 @@ include("conformance.jl")
 export
     # byte layer
     scan_lines, header_checksum, checksum_value, header_block, checksum_line, PREFIX, kind_of,
+    scan_header, HeaderScan, stated_checksum, MAX_HEADER_BYTES, MAX_HEADER_LINES,
     # gzip / BGZF input (rule R1: the digest covers the decompressed bytes)
-    is_gzip, decompress_gzip, read_file_bytes,
+    is_gzip, decompress_gzip, read_file_bytes, foreach_chunk,
     # metadata
     read_fhr_header, read_fhr_file, FHRHeader, metadata_of, HeaderError,
     portable_plain_tag, yaml11_tag, yaml12_tag, unescape_double, fold_lines,
@@ -75,7 +76,8 @@ export
     # bundle audit
     audit_bundled_schemas,
     # files and the shared vectors
-    verify_file, VerifyResult, run_conformance, summarise, VectorOutcome,
+    verify_file, VerifyResult, container_findings, header_type_of, checksum_line_findings,
+    ALLOWED_TYPES, run_conformance, summarise, VectorOutcome,
     implemented_rules, runnable_formats
 
 end # module

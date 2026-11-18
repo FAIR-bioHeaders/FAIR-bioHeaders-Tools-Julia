@@ -52,6 +52,9 @@ end
            view(data, first(content):(first(content) + length(p) - 1)) == p
 end
 
+# Python's bytes.strip() whitespace, less the line terminators a line never holds.
+_is_blank_byte(b::UInt8) = b == 0x20 || b == 0x09 || b == 0x0b || b == 0x0c
+
 "The byte index where the data section starts, or `nothing` when the file is all header."
 function data_start_index(data::Vector{UInt8}, lines, kind::AbstractString)
     for (i, (content, _)) in enumerate(lines)
@@ -62,8 +65,9 @@ function data_start_index(data::Vector{UInt8}, lines, kind::AbstractString)
             b == UInt8('>') && return i
         elseif kind in ("gfa", "fhgff3")
             if b != UInt8('#')
-                return i
-            elseif kind == "fhgff3" && occursin(r"\A##FASTA[ \t]*\z", String(view(data, content)))
+                # A line of spaces and tabs is blank, as the toolkit reads it.
+                all(_is_blank_byte, view(data, content)) || return i
+            elseif kind == "fhgff3" && _starts(data, content, "##FASTA")
                 return i                        # the FHGFF3 block ends at ##FASTA (rule G1)
             end
             continue                            # `#` comments, not including a terminated block
@@ -140,37 +144,296 @@ function checksum_value(text::AbstractString, kind::AbstractString)
     return String(something(m.captures[2], m.captures[3], m.captures[4]))
 end
 
+# --------------------------------------------------------------------------------------
+# One streaming pass: header block, checksum and limits (R1-R5, R7, R10, G1)
+# --------------------------------------------------------------------------------------
+#
+# A FASTA or GFA file can be many gigabytes, so the verifier reads it once, in chunks, and
+# holds only the header lines (at most 1 MiB of them). Every other byte goes straight into
+# the digest. The root checksum line is only known once the header block has ended (a
+# later, shallower header line can change the root indentation), so the scan keeps two
+# digests the way the reference toolkit does: one over every byte, and one copied just
+# before the single candidate line and updated with everything after it.
+
+"Readers may refuse a header block larger than 1 MiB or longer than 10,000 lines (FORMAT.md)."
+const MAX_HEADER_BYTES = 2^20
+const MAX_HEADER_LINES = 10_000
+
+mutable struct HeaderScan
+    kind::String
+    prefix::Vector{UInt8}
+    header::Vector{Tuple{Int, Vector{UInt8}, Vector{UInt8}}}   # (file line, content, terminator)
+    late::Vector{Int}                 # file lines of FHR lines after the data section (R10)
+    first_line::Vector{UInt8}         # FHGFF3: line 1, for the G1 check
+    root_indent::Union{Nothing, Int}
+    matches::Int
+    candidate::Int                    # index into `header` of the root checksum line
+    digest::Union{Nothing, SHA2_512_256_CTX}
+    excluded::Union{Nothing, SHA2_512_256_CTX}
+    computed::Union{Nothing, String}
+    # line state
+    in_block::Bool
+    line::Int
+    mode::Symbol                      # :start, :header, :pass, :blank, :line1
+    buf::Vector{UInt8}                # the undecided start of a line, a header line or line 1
+    term::Vector{UInt8}
+    after_cr::Bool
+    header_bytes::Int
+    started::Bool
+end
+
+function HeaderScan(kind::AbstractString)
+    haskey(PREFIX, kind) || throw(ArgumentError(
+        "unknown header kind $(repr(kind)); expected one of $(join(keys(PREFIX), ", "))"))
+    HeaderScan(String(kind), Vector{UInt8}(codeunits(PREFIX[kind])),
+               Tuple{Int, Vector{UInt8}, Vector{UInt8}}[], Int[], UInt8[], nothing, 0, 0,
+               SHA2_512_256_CTX(), nothing, nothing, true, 1, :start, UInt8[], UInt8[], false, 0, false)
+end
+
+@inline function _hash!(st::HeaderScan, bytes)
+    st.digest === nothing || SHA.update!(st.digest, bytes)
+    st.excluded === nothing || SHA.update!(st.excluded, bytes)
+end
+
+_bytes_start(b::AbstractVector{UInt8}, p) = length(b) >= length(p) && view(b, 1:length(p)) == p
+
+"How many bytes of a line decide what it is."
+function _decide_len(st::HeaderScan)
+    n = length(st.prefix)
+    st.kind == "fhgff3" && (n = max(n, 7))           # ##FASTA
+    st.line == 1 && (n = max(n, 3))                  # a byte order mark
+    return n
+end
+
+function _end_block!(st::HeaderScan)
+    st.in_block || return
+    st.in_block = false
+    st.digest = nothing                              # only the excluded digest can be used now
+    st.matches == 1 || (st.excluded = nothing)
+end
+
+"Decide the current line from the bytes in `st.buf` (all of them when `ended`)."
+function _classify!(st::HeaderScan)
+    b = st.buf
+    if st.line == 1 && !st.started
+        st.started = true
+        st.kind != "fhgff3" && _bytes_start(b, UInt8[0xef, 0xbb, 0xbf]) &&
+            throw(HeaderError("R7", "the file begins with a UTF-8 byte order mark", 1))
+    end
+    if !st.in_block
+        if _bytes_start(b, st.prefix)
+            length(st.late) < 16 && push!(st.late, st.line)
+        end
+        st.mode = :pass
+    elseif st.kind == "fhgff3" && st.line == 1
+        st.mode = :line1                             # the version directive (G1), never a header line
+        return
+    elseif _bytes_start(b, st.prefix)
+        st.mode = :header
+        return
+    elseif st.kind in ("fasta", "fhp-fasta")
+        !isempty(b) && b[1] == UInt8('>') && _end_block!(st)
+        st.mode = :pass
+    elseif st.kind == "fhgff3" && _bytes_start(b, codeunits("##FASTA"))
+        _end_block!(st)                              # the block ends at ##FASTA (G1)
+        st.mode = :pass
+    elseif !isempty(b) && b[1] == UInt8('#')
+        st.mode = :pass
+    else
+        st.mode = :blank                             # a record line unless it is all blanks
+        _hash!(st, b)
+        any(!_is_blank_byte, b) && _end_block!(st)
+        empty!(st.buf)
+        return
+    end
+    _hash!(st, b)
+    empty!(st.buf)
+end
+
+function _content!(st::HeaderScan, bytes::AbstractVector{UInt8})
+    isempty(bytes) && return
+    if st.mode === :start
+        need = _decide_len(st) - length(st.buf)
+        if length(bytes) < need
+            append!(st.buf, bytes)
+            return
+        end
+        append!(st.buf, view(bytes, 1:need))
+        _classify!(st)
+        bytes = view(bytes, (need + 1):length(bytes))
+        isempty(bytes) && return
+    end
+    if st.mode === :header
+        st.header_bytes += length(bytes)
+        st.header_bytes > MAX_HEADER_BYTES && throw(HeaderError("limits",
+            "the FHR header lines exceed the $(MAX_HEADER_BYTES ÷ 2^20) MiB size limit", st.line))
+        append!(st.buf, bytes)
+    elseif st.mode === :line1
+        length(st.buf) + length(bytes) > MAX_HEADER_BYTES && throw(HeaderError("G1",
+            "line 1 is too long to be a ##gff-version line", 1))
+        append!(st.buf, bytes)
+    elseif st.mode === :blank
+        _hash!(st, bytes)
+        st.in_block && any(!_is_blank_byte, bytes) && _end_block!(st)
+    else
+        _hash!(st, bytes)
+    end
+end
+
+function _end_line!(st::HeaderScan)
+    st.mode === :start && _classify!(st)
+    if st.mode === :header
+        st.header_bytes += length(st.term)
+        st.header_bytes > MAX_HEADER_BYTES && throw(HeaderError("limits",
+            "the FHR header lines exceed the $(MAX_HEADER_BYTES ÷ 2^20) MiB size limit", st.line))
+        length(st.header) >= MAX_HEADER_LINES && throw(HeaderError("limits",
+            "the FHR header lines exceed the $(MAX_HEADER_LINES) line limit", st.line))
+        _header_line!(st, copy(st.buf), copy(st.term))
+    elseif st.mode === :line1
+        st.first_line = copy(st.buf)
+        _hash!(st, st.buf)
+        _hash!(st, st.term)
+    else
+        _hash!(st, st.term)
+    end
+    empty!(st.buf)
+    empty!(st.term)
+    st.mode = :start
+    st.line += 1
+end
+
+const _DIRECTIVE_LIKE = r"\A(?:%|---(?:[ \t]|\z)|\.\.\.(?:[ \t]|\z))"
+
+function _header_line!(st::HeaderScan, content::Vector{UInt8}, term::Vector{UInt8})
+    push!(st.header, (st.line, content, term))
+    meta = view(content, (length(st.prefix) + 1):length(content))
+    first_nonblank = findfirst(b -> b != 0x20 && b != 0x09, meta)
+    if any(!_is_blank_byte, meta) && first_nonblank !== nothing && meta[first_nonblank] != UInt8('#') &&
+       !occursin(_DIRECTIVE_LIKE, String(meta[first_nonblank:end]))
+        indent = first_nonblank - 1
+        if st.root_indent === nothing || indent < st.root_indent
+            st.root_indent, st.matches, st.excluded = indent, 0, nothing
+        end
+        if indent == st.root_indent && occursin(r"\Achecksum[ \t]*:", String(meta[first_nonblank:end]))
+            st.matches += 1
+            st.candidate = length(st.header)
+            st.excluded = st.matches == 1 && st.digest !== nothing ? copy(st.digest) : nothing
+            st.digest === nothing || (SHA.update!(st.digest, content); SHA.update!(st.digest, term))
+            return
+        end
+    end
+    _hash!(st, content)
+    _hash!(st, term)
+end
+
+"Feed bytes `chunk[1:n]` to the scan."
+function _feed!(st::HeaderScan, chunk::AbstractVector{UInt8}, n::Int = length(chunk))
+    i = 1
+    while i <= n
+        if st.after_cr
+            st.after_cr = false
+            if chunk[i] == 0x0a
+                push!(st.term, 0x0a)
+                i += 1
+            end
+            _end_line!(st)
+            continue
+        end
+        j = i
+        @inbounds while j <= n && chunk[j] != 0x0a && chunk[j] != 0x0d
+            j += 1
+        end
+        j > i && _content!(st, view(chunk, i:(j - 1)))
+        j > n && break
+        push!(st.term, chunk[j])
+        if chunk[j] == 0x0a
+            _end_line!(st)
+        else
+            st.after_cr = true                       # CR: a following LF belongs to it
+        end
+        i = j + 1
+    end
+end
+
+function _finish!(st::HeaderScan)
+    if st.after_cr || st.mode !== :start || !isempty(st.buf)
+        st.after_cr = false
+        _end_line!(st)
+    end
+    _end_block!(st)
+    st.computed = st.matches == 1 && st.excluded !== nothing ?
+                  base64encode(SHA.digest!(st.excluded)) : nothing
+    return st
+end
+
+"""
+    scan_header(io, kind) -> HeaderScan
+
+Read `io` once, in chunks, decompressing gzip/BGZF input (R1), and return its header
+lines, the FHR lines that follow the data section (R10), and the SHA-512/256 digest of
+every byte except the single root checksum line (R3), or `nothing` when there is not
+exactly one. Throws `HeaderError` for a byte order mark (R7), a corrupt gzip stream (R1)
+and a header block beyond the FORMAT.md limits (1 MiB, 10,000 lines). Memory stays
+bounded by the header block, whatever the file size.
+"""
+function scan_header(io::IO, kind::AbstractString)
+    st = HeaderScan(kind)
+    foreach_chunk(io) do chunk, n
+        _feed!(st, chunk, n)
+    end
+    return _finish!(st)
+end
+
+scan_header(data::AbstractVector{UInt8}, kind::AbstractString) = scan_header(IOBuffer(data), kind)
+
+"The YAML text of a scan's header lines, and the file line of each."
+function header_yaml(scan::HeaderScan)
+    p = length(scan.prefix)
+    text = join((String(c[(p + 1):end]) for (_, c, _) in scan.header), "\n")
+    return text, Int[l for (l, _, _) in scan.header]
+end
+
 """
     header_checksum(data, kind) -> (stated, computed, index, header, late, lines)
 
 `computed` is base64 SHA-512/256 over the exact bytes except the root checksum line and
-its terminator (R1-R4); `stated` is the value the file carries. Throws `ArgumentError` when
-the file does not hold exactly one checksum line, or when that line breaks R5 or R4.
+its terminator (R1-R4); `stated` is the value the file carries; `index` is the file line
+of the checksum line and `header` the file lines of the header block. Throws
+`ArgumentError` when the file does not hold exactly one checksum line, or when that line
+breaks R5 or R4, and `HeaderError` for a byte order mark (R7) or a header block beyond the
+FORMAT.md limits.
 """
 function header_checksum(data::Vector{UInt8}, kind::AbstractString)
-    haskey(PREFIX, kind) || throw(ArgumentError(
-        "unknown header kind $(repr(kind)); expected one of $(join(keys(PREFIX), ", "))"))
-    lines = scan_lines(data)
-    indices, late = header_block(data, lines, kind)
-    idx = checksum_line(data, lines, indices, kind)
-    idx === nothing && throw(ArgumentError("no root-level checksum line (rule R2)"))
-    idx === missing && throw(ArgumentError("more than one root-level checksum line (rule R2)"))
-    stated = checksum_value(String(data[lines[idx][1]]), kind)
+    scan = scan_header(data, kind)
+    stated = stated_checksum(scan)
+    return (stated = stated, computed = scan.computed, index = scan.header[scan.candidate][1],
+            header = Int[l for (l, _, _) in scan.header], late = scan.late, lines = scan_lines(data))
+end
+
+"""
+    stated_checksum(scan) -> String
+
+The value on the scan's single root checksum line. Throws `ArgumentError` naming the
+rule when there is no such line or more than one (R2), when the line holds anything but
+the value (R5), or when the value is not canonical padded base64 (R4).
+"""
+function stated_checksum(scan::HeaderScan)
+    scan.matches == 0 && throw(ArgumentError("no root-level checksum line (rule R2)"))
+    scan.matches > 1 && throw(ArgumentError("more than one root-level checksum line (rule R2)"))
+    content = scan.header[scan.candidate][2]
+    stated = isvalid(String, content) ? checksum_value(String(copy(content)), scan.kind) : nothing   # String() would take the buffer
     stated === nothing && throw(ArgumentError("the checksum line holds more than the value (rule R5)"))
     occursin(CANONICAL_B64, stated) ||
         throw(ArgumentError("the checksum value is not canonical padded base64 (rule R4)"))
-    ctx = SHA2_512_256_CTX()
-    for (i, (content, terminator)) in enumerate(lines)
-        i == idx && continue                          # R3: the line and its terminator
-        SHA.update!(ctx, data[content])
-        SHA.update!(ctx, data[terminator])
-    end
-    return (stated = stated, computed = base64encode(SHA.digest!(ctx)), index = idx,
-            header = indices, late = late, lines = lines)
+    return stated
 end
 
-header_checksum(path::AbstractString, kind::AbstractString) =
-    header_checksum(read_file_bytes(path), kind)
+function header_checksum(path::AbstractString, kind::AbstractString)
+    scan = open(io -> scan_header(io, kind), path)
+    stated = stated_checksum(scan)
+    return (stated = stated, computed = scan.computed, index = scan.header[scan.candidate][1],
+            header = Int[l for (l, _, _) in scan.header], late = scan.late, lines = nothing)
+end
 
 """
     check_header_encoding(data, lines, indices)
@@ -182,13 +445,10 @@ line breaks. Bytes outside the header lines are not decoded. Rule R7 is checked 
 function check_header_encoding(data::Vector{UInt8}, lines, indices)
     for i in indices
         bytes = data[lines[i][1]]
-        # Decode strictly: an invalid sequence means the line is not UTF-8.
-        s = try
-            String(bytes)
-        catch
-            throw(HeaderError("R6", "an FHR header line is not valid UTF-8", i))
-        end
-        for c in s
+        # Decode strictly. `String(bytes)` never throws (it keeps invalid sequences as
+        # they are), so the check has to ask: overlong forms and surrogates fail it too.
+        isvalid(String, bytes) || throw(HeaderError("R6", "an FHR header line is not valid UTF-8", i))
+        for c in String(bytes)
             c in YAML_ONLY_BREAKS &&
                 throw(HeaderError("R6", "an FHR header line contains U+0085, U+2028 or U+2029, " *
                                         "which YAML reads as a line break", i))

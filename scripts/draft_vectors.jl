@@ -44,6 +44,7 @@
 using FAIRBioHeaders
 using JSON
 using SHA
+using Base64
 
 const VERBOSE = "--verbose" in ARGS
 
