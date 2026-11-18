@@ -85,6 +85,11 @@ one-byte mutation). FHGM is not a header type and must never be modelled as one.
 draft-pin freshness job is advisory (`continue-on-error`) and nothing re-pins
 automatically: re-pinning is a deliberate, dated commit changing bytes, commit, digest
 and prose together.
+A user-authorized CI repair may include this deliberate reviewed refresh; this
+rule does not create a separate human approval gate for every draft pin. A prior
+agent ledger's wording about a human re-pinning is not an additional maintainer
+ruling. Independent review, green CI, explicit type-specific maintainer gates and
+separate adoption/publication gates still apply.
 
 ## Hard technical constraints (measured, see docs/CAPABILITY.md)
 

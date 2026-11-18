@@ -26,14 +26,14 @@
 #   `x-fhgm-models` key. `overlay = true` additionally applies the pinned transport
 #   overlay, which binds citation and version together: as re-pinned on 2026-11-15 it
 #   admits the v0.5.0 FHGFF3 citation only with `schemaVersion` "1.1", and the v0.6.0
-#   citation only with "1.2" - two closed branches, no fallback - so a header whose
+#   citation with "1.1" or "1.2" - two closed branches, no fallback - so a header whose
 #   citation and stated version contradict each other passes the R15 reading and is
 #   refused by the overlay. That pairing is the upstream checker's own rule
 #   (FHGM-Specification PR #17), so it stays opt-in here rather than the default.
 # * K2 record shape: every record validates against the pinned record contract (draft
 #   2020-12, `assert_format = true`), whose required set is modelId, modelVersion,
 #   featureId and reference.
-# * K3 uniqueness: modelId is unique within one snapshot; a shared id is reported as
+# * K3 uniqueness: modelId is unique after NFC normalization within one snapshot; a shared id is reported as
 #   ambiguous and rejects that snapshot - the current one or a supplied predecessor.
 # * K5 reference agreement: a record reference shares at least one comparable form with
 #   the file's genome link and never contradicts it.
@@ -248,6 +248,22 @@ function _check_snapshot(header; overlay::Bool = false, label::AbstractString = 
                              "K4" => "skipped", "K5" => "skipped"))
     end
 
+    # Draft K1 admits only the registered carrier citations recorded in the pinned
+    # overlay. Do not change released V1 selection or infer a release from its version.
+    # Pair validation remains the explicit overlay option below.
+    carrier = get(header, "schema", nothing)
+    transport = load_draft("FHGM", "overlay")
+    branches = get(transport, "anyOf", Any[])
+    admitted = carrier isa AbstractString && any(branch -> begin
+        props = get(branch, "properties", Dict{String, Any}())
+        carrier in get(get(props, "schema", Dict{String, Any}()), "enum", Any[])
+    end, branches)
+    if !admitted
+        rules["K1"] = "reject"
+        push!(errors, "$(label) K1: the carrier cites schema $(JSON.json(carrier)), which no " *
+                      "registered FHGFF3 base release in the pinned draft overlay answers to")
+    end
+
     if overlay
         ov = load_draft("FHGM", "overlay")
         ov === nothing && throw(HeaderError("V7", "the pinned FHGM transport overlay is unavailable " *
@@ -274,11 +290,46 @@ function _check_snapshot(header; overlay::Bool = false, label::AbstractString = 
     file_forms = _reference_forms(header, "header")
     gene_rows = gene_ids === nothing ? nothing : Set(String.(gene_ids))
 
+    # The owning checker validates every record's K2 shape before snapshot K3.
+    record_messages = [_draft_violations("FHGM/contract/$(entry.sha256)",
+                         () -> load_draft("FHGM", "contract"), raw) for raw in models]
+    if any(!isempty, record_messages)
+        for (idx, msgs) in enumerate(record_messages), message in msgs
+            push!(errors, "$(label) K2 record $(idx - 1): $(MODELS_KEY)[$(idx - 1)] " *
+                          "does not satisfy the pinned record contract: $(message)")
+        end
+        return (valid = false, errors = errors, warnings = warnings, records = records,
+                by_model_id = by_model_id,
+                rules = Dict("K1" => "pass", "K2" => "reject", "K3" => "skipped",
+                             "K4" => "skipped", "K5" => "skipped"))
+    end
+
+    # K3 is a snapshot rule before per-record K4/K5: canonical Unicode spellings
+    # collide, but distinct case and compatibility spellings stay distinct.
+    seen_ids = Set{String}()
+    for raw in models
+        mid = get(raw, "modelId", nothing)
+        mid isa AbstractString || continue
+        key = Unicode.normalize(String(mid), :NFC)
+        if key in seen_ids
+            rules["K3"] = "reject"
+            push!(errors, "$(label) K3: Ambiguous model ID $(JSON.json(mid)): more than one record " *
+                          "in this snapshot shares it after NFC normalisation")
+        end
+        push!(seen_ids, key)
+    end
+
+    if rules["K3"] == "reject"
+        return (valid = false, errors = errors, warnings = warnings, records = records,
+                by_model_id = by_model_id,
+                rules = Dict("K1" => "pass", "K2" => "pass", "K3" => "reject",
+                             "K4" => "skipped", "K5" => "skipped"))
+    end
+
     for (idx, raw) in enumerate(models)
         _isa_dict(raw) || continue   # K1 already refused a non-record entry
         i = idx - 1                  # records are 0-indexed in messages, like the family
-        msgs = _draft_violations("FHGM/contract/$(entry.sha256)",
-                                 () -> load_draft("FHGM", "contract"), raw)
+        msgs = record_messages[idx]
         record_errors = ["$(label) K2 record $(i): $(MODELS_KEY)[$(i)] does not satisfy the pinned " *
                          "record contract: $(m)" for m in msgs]
         isempty(record_errors) || (rules["K2"] = "reject")
@@ -401,7 +452,7 @@ verdict it returns never joins the released-contract errors of any reading.
   without a base that holds there is no FHGM verdict, only `not-checked`;
 * `overlay`: also apply the pinned transport overlay, the way the upstream draft
   checker does (as re-pinned 2026-11-15 it pairs citation with version - v0.5.0 with
-  "1.1", v0.6.0 with "1.2", as two closed branches - so a contradictory pairing the
+  "1.1", v0.6.0 with "1.1" or "1.2", as two closed branches - so a contradictory pairing the
   published R15 reading admits is refused here);
 * `predecessors`: prior snapshots K6 may resolve against, each
   `(checksum = ..., header = ...)`; each is itself run through K1-K3 and K5 before any

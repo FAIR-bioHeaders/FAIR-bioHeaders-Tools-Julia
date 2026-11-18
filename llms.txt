@@ -18,6 +18,11 @@ FHP `'1.2'`, FHGFF3 `'1.2'`):
   value under rule V5 (read as current FHR). The opt-in `drafts = true` lane reads the
   digest-pinned draft bytes under `drafts/` and warns on every record; draft suites run
   only in the labelled `draft-lane` CI job and never join the shared 291-vector ledger.
+  Authorized CI maintenance may refresh draft pins through a deliberate dated,
+  reviewed commit updating bytes, digests, commits, counts and prose together.
+  Freshness checks never update pins automatically; no separate human pin gate is
+  implied by that rule. Preserve any explicit type-specific maintainer gate and
+  all independent-review, green-CI, adoption and publication requirements.
 - The digest is Julia stdlib `SHA` (`SHA2_512_256_CTX` + padded base64, rule R4) and is
   byte-equal to the released Python toolkit's `hashlib` digest; the measurement and the
   validator-selection study are in `docs/CAPABILITY.md`.

@@ -42,6 +42,7 @@ module FAIRBioHeaders
 using Base64
 using JSON
 using SHA
+using Unicode
 
 include("checksum.jl")
 include("reader.jl")
