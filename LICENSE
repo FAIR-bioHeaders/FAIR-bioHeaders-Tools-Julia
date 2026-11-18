@@ -437,6 +437,32 @@ in their registries and LICENSE files:
 - the Julia standard library (Base64, Dates, SHA, Tar, Test, TOML, UUIDs,
   Unicode) - MIT License as part of the Julia language.
 
+`src/yaml.jl` is a Julia port of the scanner and parser of PyYAML 6.0
+(`yaml/scanner.py`, `yaml/parser.py`, https://github.com/yaml/pyyaml), the YAML
+library the FAIR-bioHeaders reference toolkit reads headers with. That portion is
+used under PyYAML's MIT License:
+
+    Copyright (c) 2017-2021 Ingy döt Net
+    Copyright (c) 2006-2016 Kirill Simonov
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of
+    this software and associated documentation files (the "Software"), to deal in
+    the Software without restriction, including without limitation the rights to
+    use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+    of the Software, and to permit persons to whom the Software is furnished to do
+    so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
 Section 2 reproduces the unmodified MPL-2.0 text, copied verbatim from
 FAIR-bioHeaders-Specification `LICENSE` at tag v0.6.0 (git blob
 9a6fd17ccc33b8888690cf47c5c2ac7078abf513), which itself is the unmodified

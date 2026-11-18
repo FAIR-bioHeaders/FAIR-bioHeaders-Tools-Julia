@@ -168,7 +168,7 @@ function validate_record(metadata::AbstractDict, schema_value = nothing, schema_
         e isa UnsupportedContract && return [sprint(showerror, e)]
         rethrow()
     end
-    text = JSON.json(metadata)
+    text = JSON.json(_validatable(metadata))
     v = contract_validator(type, ref)
     isvalid(v, text) && return String[]
     collector = ResultsCollector(Detailed)
@@ -181,6 +181,16 @@ function validate_record(metadata::AbstractDict, schema_value = nothing, schema_
     isempty(out) && push!(out, "$(type) $(ref) ($(basename(path))): the record does not conform")
     return out
 end
+
+# A double-quoted YAML scalar may hold a lone surrogate (`"\\ud800"`): PyYAML reads it and
+# the reference toolkit validates the record, but no JSON text and no JSON Schema engine here
+# can carry one. For validation only, each such code point stands in as U+FFFD, which counts
+# as one character for `maxLength` and, like a surrogate, matches no pattern, format or enum
+# of the released contracts. The metadata itself keeps the value as read.
+_validatable(s::AbstractString) = isvalid(s) ? s : map(c -> isvalid(c) ? c : '\ufffd', String(s))
+_validatable(v::AbstractVector) = Any[_validatable(x) for x in v]
+_validatable(d::AbstractDict) = Dict{String, Any}(_validatable(String(k)) => _validatable(x) for (k, x) in d)
+_validatable(x) = x
 
 # --------------------------------------------------------------------------------------
 # Rule R14: link schemes

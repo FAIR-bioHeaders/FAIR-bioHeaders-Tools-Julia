@@ -50,7 +50,8 @@ Julia is **feasible with two library-level choices and one library to avoid**:
    and it reports rejections by throwing `FieldError` rather than a usable result.
 3. **YAML layer — read it locally.** YAML.jl diverges from the family rules in ways
    the reader cannot post-check (E0c below), so the metadata block is parsed by this
-   package's own rule-driven reader.
+   package's own reader: a port of the PyYAML scanner and parser the reference toolkit
+   uses, with the toolkit's FHR rules on top (E0c).
 
 ## E0(a) — is the Julia stdlib digest byte-equal to the released toolkit?
 
@@ -160,6 +161,21 @@ YAML.jl accepts things the format forbids, rejects (by crashing) things the form
 keeps, mistypes plain scalars against YAML 1.2 core, and folds a single line break
 differently from every other family reader. **Result: the strict local reader is
 required**, and its rule behaviour is pinned in `test/runtests.jl`.
+
+The first local reader was a hand-written subset reader. A review on 2026-11-18 found it
+disagreeing with the reference toolkit on ordinary toolkit output (it dropped the first
+character of each continuation line of a wrapped quoted value) and on many edge cases
+(flow mappings with plain keys, `%YAML`/`---`, explicit keys, BigInt integers, the
+`\N \_ \L \P` escapes, multi-line flow collections, block-scalar indentation, tabs,
+reserved indicators, complex keys, `-.5`). It was replaced by `src/yaml.jl`, a direct
+port of PyYAML 6.0's `scanner.py` and `parser.py` plus the composer rules of the
+toolkit's `_Loader` (no anchors, aliases, tags or merge keys; plain scalars typed by
+YAML 1.2 core and rejected where YAML 1.1 differs; string keys; no duplicates; at most
+20,000 nodes and 64 levels). Measured on 2026-11-18 against fair-bioheaders 0.12.0
+(PyYAML 6.0.3) `load_yaml` plus its record checks, on 105,060 YAML texts (curated edge
+cases, random strings over YAML's indicator characters, random nested documents, and
+the depth, node-count and simple-key limits): **0 differences**, 18,247 of them
+accepted by both.
 
 ## E0(d) — decompressing gzip/BGZF input (rule R1), measured 2026-11-14
 
