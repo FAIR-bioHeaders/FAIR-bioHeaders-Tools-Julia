@@ -45,6 +45,7 @@ using SHA
 
 include("checksum.jl")
 include("reader.jl")
+include("yaml.jl")
 include("gzip.jl")
 include("drafts.jl")
 include("contracts.jl")

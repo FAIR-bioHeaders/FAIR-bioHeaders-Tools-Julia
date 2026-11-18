@@ -314,6 +314,107 @@ end
         @test read_fhr_header("a: [1, \"x\"]\n").metadata["a"] == Any[1, "x"]
         @test_throws HeaderError read_fhr_header("a: [1,\n")
     end
+    # Every expectation below was taken from the reference toolkit (fair-bioheaders 0.12.0,
+    # PyYAML 6.0 SafeLoader with the FHR rules): this reader must read a header exactly as
+    # that one does, accepting what it accepts and rejecting what it rejects.
+    @testset "multi-line scalars keep every character (toolkit-written wrapping)" begin
+        # bioheaders' own YAML writer wraps long values at 80 columns: a quoted scalar
+        # continues on an indented line, and a double-quoted one ends a line with `\`
+        # and starts the next with `\ ` (an escaped space) to keep the space exactly.
+        sq = "assemblyProtocol: 'Protocol: assembled with Hi-C reads from the Arima kit, scaffolded\n" *
+             "  with YaHS and curated by hand in PretextView over several days of work'\n"
+        @test read_fhr_header(sq).metadata["assemblyProtocol"] ==
+              "Protocol: assembled with Hi-C reads from the Arima kit, scaffolded with YaHS " *
+              "and curated by hand in PretextView over several days of work"
+        @test read_fhr_header("a: 'Protocol: assembled with\n  Hi-C reads'\n").metadata["a"] ==
+              "Protocol: assembled with Hi-C reads"
+        dq = "x-note: \"A value with \\x3E and \\x40 characters that must be escaped in FASTA headers and\\\n" *
+             "  \\ wraps across several lines because it is long enough\"\n"
+        @test read_fhr_header(dq).metadata["x-note"] ==
+              "A value with > and @ characters that must be escaped in FASTA headers and " *
+              "wraps across several lines because it is long enough"
+        @test read_fhr_header("a: \"Hi-C\n  reads\"\n").metadata["a"] == "Hi-C reads"
+        @test read_fhr_header("a: \"l1\\\n  l2\"\n").metadata["a"] == "l1l2"        # `\` joins lines
+        @test read_fhr_header("a: 'p1\n\n  p2'\n").metadata["a"] == "p1\np2"        # blank line = break
+        @test read_fhr_header("a: plain\n  continued\n   more\n").metadata["a"] == "plain continued more"
+        sqit = "x-sq: 'it''s a long single quoted value: with a colon and enough words to wrap past\n" *
+               "  eighty columns for sure'\n"
+        @test read_fhr_header(sqit).metadata["x-sq"] ==
+              "it's a long single quoted value: with a colon and enough words to wrap past eighty columns for sure"
+        # the same through a file: header lines, prefix and all
+        text, _ = build_file(["schema: https://w3id.org/fair-bioheaders/fhr/v0.6.0",
+                              "assemblyProtocol: 'Protocol: assembled with", "  Hi-C reads'"], ">c\nA\n")
+        @test read_fhr_file(Vector{UInt8}(text), "fasta").metadata["assemblyProtocol"] ==
+              "Protocol: assembled with Hi-C reads"
+    end
+    @testset "flow collections as YAML reads them" begin
+        @test read_fhr_header("x: {a: 1}\n").metadata["x"] == Dict("a" => 1)
+        @test read_fhr_header("x: {a: [1, 2], b: {c: d}}\n").metadata["x"] ==
+              Dict("a" => Any[1, 2], "b" => Dict("c" => "d"))
+        @test read_fhr_header("x: [a: 1]\n").metadata["x"] == Any[Dict("a" => 1)]   # single-pair mapping
+        @test read_fhr_header("x: [a: 1, b]\n").metadata["x"] == Any[Dict("a" => 1), "b"]
+        @test read_fhr_header("x: [http://x.org/a]\n").metadata["x"] == Any["http://x.org/a"]
+        @test_throws HeaderError read_fhr_header("x: [http://x.org/a?b=c]\n")   # `?` ends a flow plain scalar
+        @test read_fhr_header("x: {a:1}\n").metadata["x"] == Dict("a:1" => nothing)
+        @test read_fhr_header("x: [1,\n  2]\n").metadata["x"] == Any[1, 2]          # multi-line flow
+        @test read_fhr_header("x: {b: 1,\n  c: 2}\n").metadata["x"] == Dict("b" => 1, "c" => 2)
+        @test read_fhr_header("x: [1, 2,]\n").metadata["x"] == Any[1, 2]
+    end
+    @testset "what PyYAML rejects is rejected" begin
+        for bad in ["a: [&x 1]\n", "a: [*x]\n", "a: {b: !!int 1}\n", "a: [!!str 1]\n",  # inside flow
+                    "a: @x\n", "a: `x\n", "a: %x\n",                                     # reserved starts
+                    "\ta: 1\n", "a:\n\t- 1\n", "a: b\tc\n",                              # tabs
+                    "? [a]\n: 1\n", "[a]: 1\n", "{a: 1}: 2\n",                           # complex keys
+                    "x-a: <<\n", "a: [<<]\n", "<<: {a: 1}\n",                            # merge
+                    "a: =\n", "a: -.5\n", "a: +.5\n",                                    # YAML 1.1 value / floats
+                    "1: a\n", "null: a\n", "a: {1: b}\n",                                # non-string keys
+                    "a: 1\n---\nb: 2\n", "- 1\n- 2\n", "just a string\n",                # not one mapping
+                    "%YAML 2.0\n---\na: 1\n", "a: \"\\q\"\n", "a: \"\\U00110000\"\n"]
+            @test_throws HeaderError read_fhr_header(bad)
+        end
+        @test read_fhr_header("a: .5\n").metadata["a"] == 0.5         # unsigned is a float in both
+        @test read_fhr_header("a: '-.5'\n").metadata["a"] == "-.5"
+        @test read_fhr_header("a: x%\n").metadata["a"] == "x%"
+        @test read_fhr_header("a: \"=\"\n").metadata["a"] == "="
+    end
+    @testset "what PyYAML accepts is accepted" begin
+        big = read_fhr_header("a: 123456789012345678901234567890\nb: -9223372036854775809\nc: 9223372036854775807\n").metadata
+        @test big["a"] == parse(BigInt, "123456789012345678901234567890")
+        @test big["b"] == parse(BigInt, "-9223372036854775809")
+        @test big["c"] === typemax(Int)
+        @test read_fhr_header("---\na: 1\n").metadata == Dict("a" => 1)
+        @test read_fhr_header("--- \na: 1\n...\n").metadata == Dict("a" => 1)
+        @test read_fhr_header("%YAML 1.1\n---\na: 1\n").metadata == Dict("a" => 1)
+        @test read_fhr_header("%YAML 1.2\n---\na: 1\n").metadata == Dict("a" => 1)
+        @test read_fhr_header("%TAG ! tag:example.com,2000:\n---\na: 1\n").metadata == Dict("a" => 1)
+        @test_throws HeaderError read_fhr_header("%TAG ! tag:example.com,2000:\n---\na: !x 1\n")  # used: a tag
+        @test read_fhr_header("? a\n: 1\n").metadata == Dict("a" => 1)          # explicit key
+        @test read_fhr_header("? a\n").metadata == Dict("a" => nothing)
+        @test read_fhr_header("a: \"x\\N\\_\\L\\Py\"\n").metadata["a"] == "x\u85\ua0\u2028\u2029y"
+        @test read_fhr_header("a: \"\\/\\e\\ \\\"\"\n").metadata["a"] == "/\e \""
+        @test unescape_double("x\\x3Ey\\N") == "x>y\u85"
+        # block scalars keep relative indentation; an empty clipped block is ""
+        @test read_fhr_header("a: |\n  l1\n   l2\n").metadata["a"] == "l1\n l2\n"
+        @test read_fhr_header("a: >\n  f1\n  f2\n\n  f3\n   indented\n  back\n").metadata["a"] ==
+              "f1 f2\nf3\n indented\nback\n"
+        @test read_fhr_header("a: |\nb: 1\n").metadata == Dict("a" => "", "b" => 1)
+        @test read_fhr_header("a: |-\n").metadata["a"] == ""
+        @test read_fhr_header("a: |+\n  t\n\nb: 1\n").metadata["a"] == "t\n\n"
+        @test read_fhr_header("a: |2\n   two\n").metadata["a"] == " two\n"
+        @test read_fhr_header("\ufeffa: 1\n").metadata == Dict("a" => 1)        # BOM opening the YAML
+    end
+    @testset "limits: 64 levels, 20,000 nodes, never a stack overflow" begin
+        nest(d) = "a: " * "["^d * "]"^d * "\n"
+        @test read_fhr_header(nest(63)).metadata["a"] isa Vector   # 64 levels with the root mapping
+        @test_throws HeaderError read_fhr_header(nest(64))
+        e = try read_fhr_header("a: " * "["^500_000 * "\n"); nothing catch err; err end
+        @test e isa HeaderError && e.rule == "limits"
+        blocks = join([" "^i * "k:" for i in 0:199], "\n") * " 1\n"
+        e = try read_fhr_header(blocks); nothing catch err; err end
+        @test e isa HeaderError && e.rule == "limits"
+        @test length(read_fhr_header("a: [" * join(fill("1", 19_997), ", ") * "]\n").metadata["a"]) == 19_997
+        @test_throws HeaderError read_fhr_header("a: [" * join(fill("1", 19_998), ", ") * "]\n")
+    end
     @testset "R11 raw > or @ warns but stays valid" begin
         text, _ = build_file(["description: \"a > b\""], ">ctg1\nACGT\n")
         h = read_fhr_file(Vector{UInt8}(text), "fasta")
