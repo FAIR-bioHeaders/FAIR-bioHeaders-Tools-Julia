@@ -641,7 +641,68 @@ end
         w = link_scheme_warnings(Dict{String, Any}("relatedLink" => Any["javascript:alert(1)"]))
         @test length(w) == 1
         @test isempty(link_scheme_warnings(Dict{String, Any}("relatedLink" => Any["https://x.example"])))
+        # Each expectation is the reference toolkit's own output for the same record.
+        tail = "; links should use http or https (accepted: http, https, ftp, urn, doi, info; docs/FORMAT.md R14)"
+        rec(extra) = merge(Dict{String, Any}("schema" => "https://w3id.org/fair-bioheaders/fhr/v0.6.0",
+                                              "schemaVersion" => "2.1"), Dict{String, Any}(extra))
+        for (extra, want) in [
+                ("relatedLink" => Any["HTTPS://example.org"], String[]),                # case-insensitive
+                ("relatedLink" => Any["DOI:10.1/x"], String[]),
+                ("relatedLink" => Any["ftp://h/x", "urn:x:y"], String[]),
+                ("relatedLink" => Any["http://"], ["relatedLink[0] is not an absolute http URL" * tail]),
+                ("relatedLink" => Any["http:///x"], ["relatedLink[0] is not an absolute http URL" * tail]),
+                ("relatedLink" => Any["https://a b"], ["relatedLink[0] is not an absolute URI" * tail]),
+                ("relatedLink" => Any["https://a\u202eb"], ["relatedLink[0] is not an absolute URI" * tail]),
+                ("relatedLink" => Any["https://a\x01b"], ["relatedLink[0] is not an absolute URI" * tail]),
+                ("relatedLink" => Any["https://a\u00a0b"], ["relatedLink[0] is not an absolute URI" * tail]),
+                ("relatedLink" => Any["https://a\u2028b"], ["relatedLink[0] is not an absolute URI" * tail]),
+                ("relatedLink" => Any["javascript:alert(1)"], ["relatedLink[0] uses the URI scheme 'javascript'" * tail]),
+                ("taxon" => Dict{String, Any}("name" => "H", "uri" => "file:///etc"),
+                 ["taxon.uri uses the URI scheme 'file'" * tail]),
+                ("assemblyProtocol" => "protocols/a.md", ["assemblyProtocol is not an absolute URI" * tail]),
+                ("x-link" => "javascript:alert(1)", String[]),                          # x- values are not links
+                ("x-o" => Dict{String, Any}("uri" => "javascript:1"), String[]),
+                ("schema" => "https://w3id.org/fair-bioheaders/fhr/v0.2.0", String[])]   # V4: nothing checked
+            @test link_scheme_warnings(rec([extra])) == want
+        end
     end
+end
+
+@testset "conformance runner checks" begin
+    je = FAIRBioHeaders.json_equal
+    @test !je(1, true) && !je(true, 1) && !je(0, false) && je(true, true) && je(1, 1.0)
+    @test je(Dict("a" => 1), Dict("a" => 1))
+    @test !je(Dict("a" => 1, "b" => 2), Dict("a" => 1))           # an extra key is a difference
+    @test !je(Dict("a" => 1), Dict("a" => 1, "b" => 2))
+    r(errors) = (errors = errors, warnings = String[], not_checked = String[], ok = false)
+    @test FAIRBioHeaders.breaks_rule(r(["R8: line 3: duplicate mapping key \"a\""]), "R8")
+    @test !FAIRBioHeaders.breaks_rule(r(["R8: line 3: duplicate mapping key \"a\""]), "R12")
+    @test FAIRBioHeaders.breaks_rule(r(["no root-level checksum line (rule R2)"]), "R2")
+    @test FAIRBioHeaders.breaks_rule(r(["FHR v0.6.0 (fhr.json): The value was expected to match at /x"]), "R15")
+    @test !FAIRBioHeaders.breaks_rule(r(["R12: line 1: syntax"]), "R15")   # a contract rule needs a contract finding
+    @test FAIRBioHeaders.breaks_rule(r(["the stated checksum does not match the bytes it covers (rule R3): x"]), "R1")
+    @test !FAIRBioHeaders.breaks_rule(r(["R1 is not R10"]), "R10")
+    # a vector rejected for some other reason does not pass
+    dir = mktempdir()
+    mkpath(joinpath(dir, "invalid")); mkpath(joinpath(dir, "valid"))
+    text, _ = build_file(["genome: a", "genome: b"], ">c\nA\n")
+    write(joinpath(dir, "invalid", "dup.fhr.fasta"), text)
+    v = Dict{String, Any}("id" => "dup", "file" => "invalid/dup.fhr.fasta", "format" => "fasta",
+                          "expected" => "invalid", "rule" => "R12")
+    @test !FAIRBioHeaders.run_vector(dir, v).passed
+    v["rule"] = "R8"
+    @test FAIRBioHeaders.run_vector(dir, v).passed
+    # a valid vector that lists an R14 warning needs one
+    text, digest = build_file(record_meta(merge(base_record(), Dict{String, Any}("relatedLink" => Any["javascript:x"]))), ">c\nA\n")
+    write(joinpath(dir, "valid", "w.fhr.fasta"), text)
+    w = Dict{String, Any}("id" => "w", "file" => "valid/w.fhr.fasta", "format" => "fasta", "expected" => "valid",
+                          "checksum" => digest, "warnings" => ["R14"])
+    @test FAIRBioHeaders.run_vector(dir, w).passed
+    text, digest = build_file(record_meta(base_record()), ">c\nA\n")
+    write(joinpath(dir, "valid", "w.fhr.fasta"), text)
+    w["checksum"] = digest
+    o = FAIRBioHeaders.run_vector(dir, w)
+    @test !o.passed && occursin("no R14 warning", o.detail)
 end
 
 @testset "bundled schema audit (native)" begin

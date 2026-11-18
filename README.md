@@ -83,7 +83,9 @@ unset (a local rule-only run) skips the vector layer, and it says so. With
 tally), and CI asserts every number in it — a green build with a missing or short
 receipt fails the job. The Python toolkit is never part of this path; the released
 toolkit and the old Python audit run only in a separate, explicitly supplemental
-`differential` job.
+`differential` job, which compares this package with fair-bioheaders 0.12.0 verdict by
+verdict on the vectors and released examples, and reading by reading on generated YAML
+(`scripts/differential/`).
 
 ## License and provenance
 

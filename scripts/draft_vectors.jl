@@ -280,11 +280,8 @@ function run_fht_vector(vector::AbstractDict, layout)
         json_equal(have, want) || push!(problems, "metadata.$(k): got $(JSON.json(have)) want $(JSON.json(want))")
     end
     for needle in get(vector, "warnings", Any[])
-        # Julia words its R14 warning without the rule token (that wording predates the
-        # lane and is fixed by the default-behaviour golden); the comparable claim is
-        # "the R14 scheme warning fired".
-        hit = needle == "R14" ? any(occursin("is not an http", w) for w in r.warnings) :
-                                any(occursin(String(needle), w) for w in r.warnings)
+        # Every warning names its rule (the R14 wording follows the reference toolkit's).
+        hit = any(occursin(Regex("\\b" * String(needle) * "\\b"), w) for w in r.warnings)
         hit || push!(problems, "expected a warning naming $(needle)")
     end
     sc = get(vector, "selfChecksum", nothing)

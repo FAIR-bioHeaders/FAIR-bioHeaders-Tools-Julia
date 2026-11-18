@@ -422,7 +422,11 @@ function stated_checksum(scan::HeaderScan)
     scan.matches > 1 && throw(ArgumentError("more than one root-level checksum line (rule R2)"))
     content = scan.header[scan.candidate][2]
     stated = isvalid(String, content) ? checksum_value(String(copy(content)), scan.kind) : nothing   # String() would take the buffer
-    stated === nothing && throw(ArgumentError("the checksum line holds more than the value (rule R5)"))
+    # Anything but 44 base64 characters ending in `=` (a block scalar indicator, a value cut
+    # short or continued on the next line) means the line holds something other than the
+    # value (R5); the right shape with nonzero unused bits is a non-canonical value (R4).
+    (stated === nothing || !occursin(r"\A[A-Za-z0-9+/]{43}=\z", stated)) &&
+        throw(ArgumentError("the checksum line must hold the 44-character value and nothing else (rule R5)"))
     occursin(CANONICAL_B64, stated) ||
         throw(ArgumentError("the checksum value is not canonical padded base64 (rule R4)"))
     return stated

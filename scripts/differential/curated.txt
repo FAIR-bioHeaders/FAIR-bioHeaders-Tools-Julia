@@ -1,0 +1,251 @@
+a: 1
+x: {a: 1}
+x: [a: 1]
+x: [a: 1, b]
+x: {a: [1, 2], b: {c: d}}
+x: {a:1}
+x: {"a":1}
+x: [1,2,]
+x: {a: 1,}
+x: [ ]
+x: { }
+a: |
+  l1
+   l2
+a: |
+b: 1
+a: |-
+  t
+a: |+
+  t
+
+b: 1
+a: >
+  f1
+  f2
+
+  f3
+   indented
+  back
+a: >-
+
+  x
+a: |2
+   two
+a: 'Protocol: assembled with
+  Hi-C reads'
+a: "Protocol: assembled with
+  Hi-C reads"
+a: "l1\
+  l2"
+a: "x\N\_\L\Py"
+a: "\x3E\x40"
+a: "\ud800"
+a: "\U0001F600"
+a: "\t tab"
+a: "	literal tab"
+a: 'it''s'
+a: plain
+  continued
+   more
+a: plain
+
+  para
+? a
+: 1
+? [a]
+: 1
+[a]: 1
+{a: 1}: 2
+a: &x 1
+a: *x
+a: !!str 5
+a: ! 5
+a: !foo 5
+a: [&x 1]
+a: [*x]
+a: {b: !!int 1}
+a: @x
+a: `x
+a: %x
+a: x%
+	a: 1
+a:	1
+a: 1	
+a: b	c
+  a: 1
+ b: 2
+a:
+	- 1
+x-a: <<
+<<: {a: 1}
+"<<": 1
+a: [<<]
+a: =
+a: "="
+a: -.5
+a: +.5
+a: .5
+a: 1.
+a: 1.e+3
+a: 1.5e3
+a: 1.5e+3
+a: 1e3
+a: 0x1F
+a: -0x1F
+a: 0o17
+a: 017
+a: 0
+a: -0
+a: +12
+a: 1_000
+a: 1:30
+a: 123456789012345678901234567890
+a: -123456789012345678901234567890
+a: 9223372036854775807
+a: 9223372036854775808
+a: 1.0e+999
+a: 1.0e-999
+a: .inf
+a: -.Inf
+a: .NaN
+a: ~
+a: null
+a: Null
+a:
+a: true
+a: True
+a: yes
+a: y
+a: Y
+a: n
+a: on
+a: oN
+a: 2026-01-01
+a: 2026-1-1
+a: 2026-01-01 10:00:00
+a: 2026-01-01T10:00:00Z
+---
+a: 1
+--- 
+a: 1
+...
+%YAML 1.1
+---
+a: 1
+%YAML 1.2
+---
+a: 1
+%YAML 2.0
+---
+a: 1
+%TAG ! tag:example.com,2000:
+---
+a: 1
+%TAG ! tag:example.com,2000:
+---
+a: !x 1
+%FOO bar
+---
+a: 1
+a: 1
+---
+b: 2
+---
+a: 1
+- 1
+- 2
+just a string
+1: a
+null: a
+true: a
+1.5: a
+a: {1: b}
+a: [1,
+  2]
+a: {b: 1,
+  c: 2}
+a: [1,
+2]
+a:
+  - 1
+  -   2
+  - - 3
+    - 4
+a:
+- 1
+- 2
+b: 3
+a: 1 # comment
+a: 1#nocomment
+a: 'q' # c
+a: 'q'x
+a: "q" "r"
+a: b: c
+a: b:c
+a: http://x.org/a?b=c#frag
+a: [http://x.org]
+a: {u: http://x.org}
+a: [a:b]
+a: {a:b}
+a: [a :b]
+a: [ ? a : b ]
+a: [? a]
+a: {? a}
+a: { a, b }
+a: - 1
+a: -1
+a: --1
+a: ?x
+a: :x
+a: x:
+a: "a
+b"
+a: "a
+
+b"
+a: 'a
+  
+  b'
+a: "unterminated
+a: [1, 2
+a: |
+  text
+ under
+a: >1
+  x
+a: |0
+  x
+a: |10
+  x
+a: b
+  # c
+  d
+a:   b   
+a: "trailing"   
+a: [] 
+a: {} 
+"a": 1
+'a': 1
+"a\x41": 1
+a: 1
+a: 2
+a: {b: 1, b: 2}
+x: 'a''b'''
+x: ''
+x: ""
+x: ' '
+x: "\""
+x: "\/"
+x: "\q"
+x: "\x4"
+x: "\u00e9"
+x: "\U00110000"
+<BOM>a: 1
+a: x<BOM>y
+x:
+  y:
+    z: 1
+  w: 2
+x: !!binary aGVsbG8=
+x: !<tag:yaml.org,2002:str> y

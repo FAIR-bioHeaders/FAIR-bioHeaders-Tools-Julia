@@ -65,7 +65,7 @@ export
     portable_plain_tag, yaml11_tag, yaml12_tag, unescape_double, fold_lines,
     # contracts
     bundled_contracts, select_contract, parse_citation, validate_record, contract_validator,
-    UnsupportedContract, supported, v6_warning, link_scheme_warnings,
+    UnsupportedContract, supported, v6_warning, link_scheme_warnings, link_problem, uri_scheme,
     # rule V7 draft lane (opt-in; nothing here runs by default)
     draft_registry, draft_types, draft_entry, draft_suite_pin, citation_index, draft_lane_of,
     draft_warning, draft_support, load_draft, verify_draft_bytes, check_suite_pin,
