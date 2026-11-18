@@ -94,7 +94,12 @@ end
 function header_of_scan(scan::HeaderScan)
     kind = scan.kind
     isempty(scan.header) && throw(HeaderError("R10", "the file has no header block", 1))
-    isempty(scan.late) || throw(HeaderError("R10", "an FHR line follows the data section", first(scan.late)))
+    if !isempty(scan.late)
+        # In FHGFF3, rule G1 names the same break: a #~ line after a feature or after ##FASTA.
+        kind == "fhgff3" && throw(HeaderError("G1",
+            "a #~ line follows a feature line or ##FASTA (rule R10)", first(scan.late)))
+        throw(HeaderError("R10", "an FHR line follows the data section", first(scan.late)))
+    end
     if kind == "fhgff3"
         text = isvalid(String, scan.first_line) ? String(copy(scan.first_line)) : ""
         occursin(r"\A##gff-version 3(\.[0-9]+\.[0-9]+)?[ \t]*\z", text) ||
@@ -233,7 +238,7 @@ function verify_file(path::AbstractString; kind::Union{Nothing, AbstractString} 
                 append!(errors, findings)
                 append!(errors, container_findings(metadata, k; drafts = drafts))
             end
-            append!(warnings, link_scheme_warnings(metadata))
+            append!(warnings, link_scheme_warnings(metadata; drafts = drafts))
             if _is_number_one(version) && parse_citation(get(metadata, "schema", nothing)) == ("FHR", "main")
                 push!(warnings, v6_warning())
             end

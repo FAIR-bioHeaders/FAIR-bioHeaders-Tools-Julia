@@ -189,8 +189,7 @@ function _record_link_scheme_warnings(record)
     warns = String[]
     for (path, value) in _walk_strings(record, "")
         (occursin(r"(^|\.)uri\$|Url\$", path)) || continue
-        (value isa AbstractString && !isempty(value) &&
-         !any(s -> startswith(value, s), ACCEPTED_SCHEMES)) || continue
+        (value isa AbstractString && !isempty(value) && link_problem(value) !== nothing) || continue
         push!(warns, "R14 warning: $(path) is \"$(value)\", which has no link scheme " *
                      "docs/FORMAT.md R14 accepts (http, https, ftp, urn:, doi:, info:)")
     end

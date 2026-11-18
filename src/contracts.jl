@@ -199,49 +199,119 @@ _validatable(x) = x
 # Rule R14: link schemes
 # --------------------------------------------------------------------------------------
 
-"The schemes rule R14 accepts for a `format: uri` value."
-const ACCEPTED_SCHEMES = ("http://", "https://", "ftp://", "urn:", "doi:", "info:")
+"The schemes rule R14 accepts for a `format: uri` value, compared without regard to case."
+const LINK_SCHEMES = ("http", "https", "ftp", "urn", "doi", "info")
+"Of those, the URL schemes, which also need `//` and a host."
+const URL_SCHEMES = ("http", "https", "ftp")
 
-# The keys the released contracts mark `format: uri` (docs/SCHEMA-VERSIONS.md,
-# "Link schemes"): single-valued fields plus the `uri`/`url` of a nested object.
-const _URI_KEYS = Set(["uri", "url", "relatedLink", "assemblyProtocol", "predictionProtocol",
-                       "annotationProtocol", "schema"])
+# The characters that end a URI-shaped value (RFC 3987 section 4.1): Unicode whitespace,
+# C0 and C1 controls, DEL, and the bidirectional formatting characters.
+_uri_forbidden(c::Char) = isspace(c) || c == '\u2028' || c == '\u2029' || c <= '\x1f' ||
+    ('\x7f' <= c <= '\x9f') || c == '\u200e' || c == '\u200f' || ('\u202a' <= c <= '\u202e') ||
+    ('\u2066' <= c <= '\u2069')
 
-"""
-    link_scheme_warnings(metadata) -> Vector{String}
-
-Rule R14: a `format: uri` value should use `http` or `https`; `ftp`, `urn:`, `doi:` and
-`info:` are accepted too. Any other scheme, such as `javascript:`, is reported here.
-R14 warns: such a record stays valid, so this never appears among the findings of
-[`validate_record`](@ref).
-"""
-function link_scheme_warnings(metadata::AbstractDict)
-    found = String[]
-    _schemes!(found, metadata, "")
-    unique!(found)
+"The lower-case scheme of a URI-shaped value (an ASCII scheme, `:`, then no forbidden character), else `nothing`."
+function uri_scheme(value::AbstractString)
+    isvalid(value) || return nothing
+    m = match(r"\A([A-Za-z][A-Za-z0-9+.\-]*):", value)
+    m === nothing && return nothing
+    rest = SubString(value, ncodeunits(m.match) + 1)
+    (isempty(rest) || any(_uri_forbidden, rest)) && return nothing
+    return lowercase(m.captures[1])
 end
 
-function _schemes!(out, value::AbstractDict, path::AbstractString)
-    for (k, v) in value
-        p = isempty(path) ? string(k) : path * "." * string(k)
-        _scheme_check!(out, string(k), v, p)
-        v isa AbstractDict && _schemes!(out, v, p)
-        if v isa AbstractVector
-            for (i, item) in enumerate(v)
-                item isa AbstractDict && _schemes!(out, item, "$(p)[$(i)]")
-                item isa AbstractString && string(k) == "relatedLink" &&
-                    _scheme_check!(out, string(k), item, "$(p)[$(i)]")
-            end
+"""
+    link_problem(value) -> String | nothing
+
+Why `value` is not an R14 link, worded as the reference toolkit words it, or `nothing`.
+"""
+function link_problem(value::AbstractString)
+    scheme = uri_scheme(value)
+    scheme === nothing && return "is not an absolute URI"
+    rest = SubString(value, length(scheme) + 2)
+    if scheme in URL_SCHEMES
+        startswith(rest, "//") && length(rest) > 2 && rest[3] != '/' && return nothing
+        return "is not an absolute $(scheme) URL"
+    end
+    scheme in LINK_SCHEMES && return nothing
+    return "uses the URI scheme '$(scheme)'"
+end
+
+const _CONTRACT_JSON = Dict{String, Any}()
+_contract_json(path::AbstractString) = get!(() -> JSON.parsefile(path), _CONTRACT_JSON, path)
+
+function _resolve_ref(schema, root)
+    seen = Set{String}()
+    while schema isa AbstractDict && haskey(schema, "\$ref")
+        ref = schema["\$ref"]
+        (ref isa AbstractString && startswith(ref, "#/") && !(ref in seen)) || break
+        push!(seen, ref)
+        target = root
+        for part in split(ref[3:end], "/")
+            target = target[replace(replace(part, "~1" => "/"), "~0" => "~")]
+        end
+        schema = target
+    end
+    return schema
+end
+
+# Every string the contract marks `format: uri`, found the way the toolkit finds them:
+# through `$ref`, `allOf`/`anyOf`/`oneOf`, declared `properties` and `items`. Values the
+# contract does not declare (extension `x-` values, for one) are not links.
+function _uri_values!(found, value, schema, path::AbstractString, root)
+    schema = _resolve_ref(schema, root)
+    schema isa AbstractDict || return found
+    get(schema, "format", nothing) == "uri" && value isa AbstractString && push!(found, (path, value))
+    for keyword in ("allOf", "anyOf", "oneOf")
+        for branch in get(schema, keyword, ())
+            _uri_values!(found, value, branch, path, root)
         end
     end
-    return out
+    if value isa AbstractDict
+        props = get(schema, "properties", nothing)
+        if props isa AbstractDict
+            for (k, item) in value
+                haskey(props, k) || continue
+                _uri_values!(found, item, props[k], isempty(path) ? String(k) : "$(path).$(k)", root)
+            end
+        end
+    elseif value isa AbstractVector && get(schema, "items", nothing) isa AbstractDict
+        for (i, item) in enumerate(value)
+            _uri_values!(found, item, schema["items"], "$(path)[$(i - 1)]", root)
+        end
+    end
+    return found
 end
 
-function _scheme_check!(out, key::AbstractString, value, path::AbstractString)
-    key in _URI_KEYS || return out
-    value isa AbstractString || return out
-    isempty(value) && return out
-    any(s -> startswith(value, s), ACCEPTED_SCHEMES) && return out
-    push!(out, "$(path) is not an http, https, ftp, urn, doi or info link: $(repr(value))")
-    return out
+"""
+    link_scheme_warnings(metadata; drafts = false) -> Vector{String}
+
+Rule R14: a value whose contract marks it `format: uri` should be an `http` or `https`
+URL; `ftp` URLs and `urn:`, `doi:` and `info:` identifiers are accepted too. Schemes are
+compared without regard to case; `http`, `https` and `ftp` need `//` and a host; and a
+value holding whitespace, a control character or a bidirectional formatting character
+has no accepted scheme. Anything else, such as `javascript:`, is reported here. R14 warns:
+such a record stays valid, so this never appears among the findings of
+[`validate_record`](@ref). The values checked are those the record's own contract
+declares; a record whose citation is unsupported (V4) gets no R14 warnings.
+"""
+function link_scheme_warnings(metadata::AbstractDict; drafts::Bool = false)
+    _, _, path = try
+        select_contract(get(metadata, "schema", nothing), get(metadata, "schemaVersion", nothing); drafts = drafts)
+    catch e
+        e isa UnsupportedContract && return String[]
+        rethrow()
+    end
+    schema = endswith(path, ".json") && isfile(path) ? _contract_json(path) : nothing
+    schema === nothing && return String[]
+    found = Tuple{String, String}[]
+    _uri_values!(found, metadata, schema, "", schema)
+    out = String[]
+    for (p, v) in found
+        problem = link_problem(v)
+        problem === nothing && continue
+        push!(out, "$(p) $(problem); links should use http or https " *
+                   "(accepted: $(join(LINK_SCHEMES, ", ")); docs/FORMAT.md R14)")
+    end
+    return unique!(out)
 end
