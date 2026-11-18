@@ -225,13 +225,9 @@ jobs:
           julia --project=. scripts/draft_pins.jl --check-contract .upstream/FHT-Specification FHT
           julia --project=. scripts/draft_pins.jl --check-contract .upstream/FHGM-Specification FHGM
 
-      # The suite is a second, separate claim, pinned to a second revision: FHT's
-      # contract bytes sit at 226f923c and its 72-vector C1-C3 suite manifest at the
-      # later 09dafdf8. FHGM's contract commit advanced WITH its transport overlay
-      # (the bytes changed; the record contract did not), so contract and suite now
-      # coincide at c503ecf3 for that type - a coincidence of measurement, not a
-      # merging of the claims: the two keys stay separate and both are checked.
-      # Move only after the contract bytes above have been confirmed.
+      # Deliberate 2026-11-18 refresh: separate contract/suite claims coincide at
+      # FHT 0311ddac (82 vectors) and FHGM b1a82f82 (62 vectors). Both pins remain
+      # independently verified; no adoption or publication follows from this job.
       - name: Move each checkout to the SUITE revision its pin names
         run: |
           set -eu
@@ -302,16 +298,12 @@ jobs:
             exit 1
           fi
           cat "$receipt"
-          # Counts are the pinned suites' own numbers, re-measured at the 2026-11-15
-          # re-pin: FHT 72 at suite 09dafdf8, FHGM 43 at suite c503ecf3 with exactly
-          # the eight K4-dependent vectors declared not-run (the boundary this library
-          # shares with the JavaScript sibling; three are new - dmel-target-absent,
-          # dmel-target-transcript-row, and dmel-snapshot-v1, an expected-valid
-          # snapshot whose rules list cites K4, so the runner scores nothing it cannot
-          # prove and reports it not-run rather than pass).
+          # Measured 2026-11-18: FHT 82 pass;
+          # FHGM 51 pass / 0 fail / 11 K4 not-run after native K1/K3 fixes.
+          # Historical pins observed 72 and 35/0/8-of-43 respectively.
           for pair in lane=draft-not-acceptance sharedLedgerTouched=false \
-                      fhtVectors=72 fhtPass=72 fhtFail=0 fhtNotRun=0 \
-                      fhgmVectors=43 fhgmPass=35 fhgmFail=0 fhgmNotRun=8 fhgmNotRunRule=K4; do
+                      fhtVectors=82 fhtPass=82 fhtFail=0 fhtNotRun=0 \
+                      fhgmVectors=62 fhgmPass=51 fhgmFail=0 fhgmNotRun=11 fhgmNotRunRule=K4; do
             key=${pair%%=*}; want=${pair##*=}
             got=$(sed -n "s/^$key=//p" "$receipt")
             if [ "$got" != "$want" ]; then

@@ -838,7 +838,7 @@ end
             @test occursin(r"\A[0-9a-f]{64}\z", pin.sha256)
             @test occursin(r"\A[0-9a-f]{40}\z", pin.commit)
         end
-        @test draft_suite_pin("FHT").vectors == 72 && draft_suite_pin("FHGM").vectors == 43
+        @test draft_suite_pin("FHT").vectors == 82 && draft_suite_pin("FHGM").vectors == 62
         # The guard, exercised both ways on synthetic pins and manifests: verified,
         # drift on one byte (byte-verified mutation), missing manifest, escaping path.
         good = (type = "CTRL", repository = "x", stated = true, partial = false,
@@ -905,6 +905,32 @@ end
         dup = deepcopy(base); push!(dup["x-fhgm-models"], deepcopy(base["x-fhgm-models"][1]))
         v2 = check_fhgm_models(dup)
         @test !v2.valid && v2.rules["K3"] == "reject" && any(occursin("Ambiguous model ID", e2) for e2 in v2.errors)
+        nfc = deepcopy(base)
+        nfc["x-fhgm-models"][1]["modelId"] = "model-café"
+        twin = deepcopy(nfc["x-fhgm-models"][1]); twin["modelId"] = "model-cafe\u0301"
+        push!(nfc["x-fhgm-models"], twin)
+        @test check_fhgm_models(nfc).rules["K3"] == "reject"
+        invalid_duplicate = deepcopy(nfc)
+        invalid_duplicate["x-fhgm-models"][2]["modelVersion"] = 4
+        invalid_verdict = check_fhgm_models(invalid_duplicate)
+        @test invalid_verdict.rules["K2"] == "reject"
+        @test invalid_verdict.rules["K3"] == "skipped"
+        @test check_fhgm_models(nfc).rules["K5"] == "skipped"
+        distinct = deepcopy(nfc); distinct["x-fhgm-models"][2]["modelId"] = "model-Café"
+        @test check_fhgm_models(distinct).valid
+        compatibility = deepcopy(nfc); compatibility["x-fhgm-models"][1]["modelId"] = "model-1"
+        compatibility["x-fhgm-models"][2]["modelId"] = "model-①"
+        @test check_fhgm_models(compatibility).valid # NFC, not compatibility folding
+        for bad_citation in ("https://raw.githubusercontent.com/FAIR-bioHeaders/FAIR-bioHeaders-Specification/main/fhgff3.json",
+                             "https://w3id.org/fair-bioheaders/fhgff3/v9.9.9", nothing,
+                             "https://w3id.org/fair-bioheaders/fhr/v0.6.0")
+            bad = deepcopy(base); bad["schema"] = bad_citation
+            @test check_fhgm_models(bad).rules["K1"] == "reject"
+        end
+        for branch in load_draft("FHGM", "overlay")["anyOf"], citation in branch["properties"]["schema"]["enum"]
+            allowed = deepcopy(base); allowed["schema"] = citation
+            @test check_fhgm_models(allowed).rules["K1"] == "pass"
+        end
         conflict = deepcopy(base)
         conflict["x-fhgm-models"][1]["reference"] = Dict("genomeReference" => Dict("accession" => "OTHER.1", "seqcol_id" => "T"^32))
         v3 = check_fhgm_models(conflict)
@@ -915,6 +941,18 @@ end
         empty = deepcopy(base); empty["x-fhgm-models"] = Any[]
         ve = check_fhgm_models(empty)
         @test !ve.valid && ve.rules["K1"] == "reject"
+        for malformed in (nothing, 3, "record", Any[], Any[nothing], Any[3], Any[Any[]])
+            bad = deepcopy(base); bad["x-fhgm-models"] = malformed
+            if malformed === nothing
+                @test check_fhgm_models(bad).status == "absent"
+            else
+                @test check_fhgm_models(bad).rules["K1"] == "reject"
+            end
+        end
+        no_models = deepcopy(base); delete!(no_models, "x-fhgm-models")
+        no_models["schema"] = "not a carrier"
+        @test check_fhgm_models(no_models).status == "absent"
+        @test isempty(check_fhgm_models(no_models).errors)
         v10 = deepcopy(base); v10["schemaVersion"] = "1.0"
         @test check_fhgm_models(v10).rules["K1"] == "reject"
         @test check_fhgm_models(base; base_ok = false).status == "not-checked"
@@ -931,7 +969,7 @@ end
         @test check_fhgm_models(mixed).rules["K1"] == "pass"                 # R15 alone admits it (1.2 >= 1.1)
         @test check_fhgm_models(mixed; overlay = true).rules["K1"] == "reject"
         mixed2 = deepcopy(v12); mixed2["schemaVersion"] = "1.1"              # v0.6.0 citation claiming 1.1
-        @test check_fhgm_models(mixed2; overlay = true).rules["K1"] == "reject"
+        @test check_fhgm_models(mixed2; overlay = true).rules["K1"] == "pass" # cited v0.6.0 admits1.1 per the owning draft
         # K6 against a supplied predecessor: resolvable, and unresolvable when withheld
         prior = deepcopy(base); prior["checksum"] = "C"^42 * "A="
         rev = deepcopy(base)
