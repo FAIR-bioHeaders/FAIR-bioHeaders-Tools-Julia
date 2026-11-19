@@ -101,10 +101,10 @@ Julia declares K4 `not-supported-yet` and reports `pass / not-run` proportions t
 differ from the JavaScript and Java libraries). These are draft implementation
 observations, not adoption or release of contract expectations. Three limitations
 travel with these numbers and cannot be seen in a digest diff or a vector count:
-(1) the pinned FHGM bytes include FHGM#29's **widening of `layers.model` semantics** —
-a `pass` now also asserts trimmed invisible-character-free text, RFC 3986 links with
-a real host, non-blank deposits, NFC-unique identifiers and a root-level gene target,
-so this pass is not the same claim as a pass under the 2026-11-15 bytes;
+(1) the pinned FHGM contract includes FHGM#29's tighter text, link and deposit checks,
+and this build enforces NFC-unique model identifiers. The upstream full model-layer
+requirements also include a root-level gene target under K4, which this Julia lane
+does not check; a passing Julia model verdict does not establish that target;
 (2) **K4 abstention is unresolved upstream** (FHGM#22/#27/#28, FAIR-bioHeaders-Specification#241
 open; JS#11 documents the unfalsifiable-`pass` shape) — the 51/0/11 is an honest hole,
 not a settled semantics; (3) **4 FHT vectors are `candidate-unreviewed`** promotion
