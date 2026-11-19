@@ -58,7 +58,11 @@ digests and prose in one deliberate commit, never an automated refresh.
   is not a control.
 - Re-pinning means the vendored bytes, the `commit`/`sha256` (and, for the suite,
   `suiteCommit`/`suiteManifestSha256`/`suiteVectors`), the `verification` prose and
-  the `docs/CAPABILITY-MATRIX.md` counts all change in one dated commit. Nothing
+  the `docs/CAPABILITY-MATRIX.md` counts all change in one dated commit. The commit
+  recorded for a pinned file is its LAST-TOUCH commit - the most recent commit of the
+  owning repository that changed those exact bytes - the convention unified across
+  the four native libraries in the 2026-11-18 coordinated re-pin; never record a
+  floating default-branch head. Nothing
   re-pins automatically: `scripts/draft_pin_freshness.jl` reports live-main drift
   (`MATCH`/`DRIFT`, advisory CI job with `continue-on-error`) and repairs nothing.
 - The contract pin and the suite pin are different claims. A statement about the

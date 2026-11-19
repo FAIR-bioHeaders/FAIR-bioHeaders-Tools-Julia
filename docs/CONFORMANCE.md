@@ -80,19 +80,36 @@ in a separate, labelled CI job (`draft-lane`) and through a local script:
 
 ```sh
 git clone https://github.com/FAIR-bioHeaders/FHT-Specification /tmp/fht && \
-  git -C /tmp/fht checkout --detach 0311ddacbf7559d4160054d23db6fd06898f45a9
+  git -C /tmp/fht checkout --detach 86438f21c3a17a58334c97aed4955be1a2393522
 git clone https://github.com/FAIR-bioHeaders/FHGM-Specification /tmp/fhgm && \
-  git -C /tmp/fhgm checkout --detach b1a82f82f8a2d4a5f5e78240edaa05c6bd9222d8
+  git -C /tmp/fhgm checkout --detach 06176262f9824f26d974a15d8feeebde1fbeb0a8
 julia --project=. scripts/draft_vectors.jl --fht /tmp/fht --fhgm /tmp/fhgm
 ```
+
+Each detached commit above is the pinned files' last-touch commit, verified 2026-11-18
+to resolve upstream and to carry the contract, overlay and manifest bytes whose
+digests `drafts/provenance.json` records (a clone at that commit reproduces every
+pinned digest byte-identically).
 
 Both suites are pinned twice over — contract bytes and suite manifest, each by commit
 plus SHA-256 in `drafts/provenance.json` — and the runner refuses to score anything
 whose manifest digest differs from the pin (exit 2, nothing reported as passed).
-Measured locally on 2026-11-18 after the deliberate dated refresh: FHT **82/82
-pass**; FHGM **51 pass, 0 fail, 11 not-run** (exactly the suite's K4-dependent
-vectors). These are draft implementation observations, not adoption or release of
-contract expectations. Before the native corrections the new suite found two FHGM
+Measured locally on 2026-11-18 (Julia 1.13.2) at the round-13 re-pinned revisions:
+FHT **82/82 pass**; FHGM **51 pass, 0 fail, 11 not-run of 62** (exactly the suite's
+11 K4-citing vectors, 3 valid and 8 invalid; the split is this library's own —
+Julia declares K4 `not-supported-yet` and reports `pass / not-run` proportions that
+differ from the JavaScript and Java libraries). These are draft implementation
+observations, not adoption or release of contract expectations. Three limitations
+travel with these numbers and cannot be seen in a digest diff or a vector count:
+(1) the pinned FHGM contract includes FHGM#29's tighter text, link and deposit checks,
+and this build enforces NFC-unique model identifiers. The upstream full model-layer
+requirements also include a root-level gene target under K4, which this Julia lane
+does not check; a passing Julia model verdict does not establish that target;
+(2) **K4 abstention is unresolved upstream** (FHGM#22/#27/#28, FAIR-bioHeaders-Specification#241
+open; JS#11 documents the unfalsifiable-`pass` shape) — the 51/0/11 is an honest hole,
+not a settled semantics; (3) **4 FHT vectors are `candidate-unreviewed`** promotion
+candidates, scored as stated by the suite and not presented as reviewed.
+Before the native corrections the new suite found two FHGM
 failures: `carrier-cites-raw-main` and `model-ids-equal-under-nfc`. The earlier
 2026-11-15 pins observed FHT 72/72 and FHGM 35/0/8-of-43; their historical
 measurements remain in commit `cfbab3d8ee028734f521ae0f0252629a246b0cbd`.

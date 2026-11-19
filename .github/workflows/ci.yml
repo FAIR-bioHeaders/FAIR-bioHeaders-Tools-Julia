@@ -225,9 +225,12 @@ jobs:
           julia --project=. scripts/draft_pins.jl --check-contract .upstream/FHT-Specification FHT
           julia --project=. scripts/draft_pins.jl --check-contract .upstream/FHGM-Specification FHGM
 
-      # Deliberate 2026-11-18 refresh: separate contract/suite claims coincide at
-      # FHT 0311ddac (82 vectors) and FHGM b1a82f82 (62 vectors). Both pins remain
-      # independently verified; no adoption or publication follows from this job.
+      # Round-13 coordinated re-pin, measured 2026-11-18: contract and suite claims
+      # coincide at the pinned files' last-touch commits - FHT 86438f21 (82 vectors)
+      # and FHGM 06176262 (62 vectors); the transport overlay's own last-touch is
+      # 019bc29e, and its bytes are unchanged through the FHGM head. Every pinned
+      # digest reproduces byte-identically at its recorded commit; the job's guards
+      # below re-confirm that. No adoption or publication follows from this job.
       - name: Move each checkout to the SUITE revision its pin names
         run: |
           set -eu

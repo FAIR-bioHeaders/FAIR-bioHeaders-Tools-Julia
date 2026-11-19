@@ -66,8 +66,8 @@ re-digest-checked against `schemas/provenance.json` on every test run
 | FHR | `1` (v0.3.0/v0.3.1), `2.0` (v0.4.0-v0.4.2), `2.1` (v0.5.0/v0.6.0) | `current/fhr.json` = v0.6.0 bytes (= v0.5.0) | 98 `fasta` vectors (incl. the rule V6 FHR 1 paths), selection tests |
 | FHP | `1.0` (v0.4.0-v0.4.2), `1.1` (v0.5.0), `1.2` (v0.6.0) | `current/fhp.json` | 36 `fhp-fasta` vectors, version-gated conditional tests |
 | FHGFF3 | `1.0` (v0.4.0-v0.4.2), `1.1` (v0.5.0), `1.2` (v0.6.0) | `current/fhgff3.json` | 38 `fhgff3` vectors, `annotates`-form tests |
-| FHT | none - **no released contract** (rule V7: no schemaVersion, no registry row, no w3id, no support claim). `drafts/fht-draft.json` is a digest-pinned *draft*, not a bundled contract: it appears in no `registry.json` or `versions.json`, and is read only through the opt-in lane | none - `main` is never consulted at run time | the V7 default-off regression tests; lane selection/warning tests; 82/82 vectors of the pinned FHT suite/contract at `0311ddac` |
-| FHGM | none - **no released contract, and not a header type**: records ride inside an FHGFF3 header under `x-fhgm-models`; `drafts/fhgm-model-draft.json` + transport overlay are digest-pinned drafts under the same discipline | none | 51 pass / 0 fail / 11 not-run (`K4`) of 62 pinned FHGM suite vectors at `b1a82f82`; see §4.2 |
+| FHT | none - **no released contract** (rule V7: no schemaVersion, no registry row, no w3id, no support claim). `drafts/fht-draft.json` is a digest-pinned *draft*, not a bundled contract: it appears in no `registry.json` or `versions.json`, and is read only through the opt-in lane | none - `main` is never consulted at run time | the V7 default-off regression tests; lane selection/warning tests; 82/82 vectors of the pinned FHT suite/contract at `86438f21` (4 of the 82 are the suite's own `candidate-unreviewed` promotion candidates, scored as stated, not as reviewed) |
+| FHGM | none - **no released contract, and not a header type**: records ride inside an FHGFF3 header under `x-fhgm-models`; `drafts/fhgm-model-draft.json` + transport overlay are digest-pinned drafts under the same discipline | none | 51 pass / 0 fail / 11 not-run (`K4`) of 62 pinned FHGM suite vectors at `06176262`; **a `pass` under these bytes means the FHGM#29-widened model layer** (trimmed invisible-character-free text, real-host RFC 3986 links, non-blank deposits, NFC-unique ids, root gene target) and is not comparable to a pass under the 2026-11-15 bytes; see §4.2 |
 
 Releases `v0.4.1`/`v0.4.2` repeat the `v0.4.0` bytes and `v0.6.0`'s `fhr.json`
 repeats `v0.5.0`'s: release identity and byte identity are recorded as separate
@@ -98,7 +98,20 @@ axes in `schemas/provenance.json`.
    to `gff3-validator`). A caller that supplies `gene_ids` can close K4 itself; the
    draft-suite runner does not; all eleven K4-dependent vectors are
    explicitly not-run, including expected-valid cases naming K4. No feature-layer
-   capability is added by this proposal.
+   capability is added by this proposal. Two things must be read with this row, and
+   neither is a number. First, the abstention is an **open upstream question, not a
+   settled rule**: FHGM#22 (does `layers.model` presuppose feature rows?), FHGM#27 and
+   FHGM#28 and FAIR-bioHeaders-Specification#241 remain unresolved, the README there
+   still calls the layers orthogonal while the layer-semantics proposal is an
+   unanswered question, and JS#11 documents the failure modes any resolution has to
+   answer - a zero-row or unreadable feature layer reported as `reject` where the
+   validator says `absent-layer`, and an empty `ID=` turning a K4 `pass` into an
+   unfalsifiable claim. Second, the bytes pinned since the 2026-11-18 re-pin contain
+   FHGM#29, which **widened what a model-layer `pass` asserts**: beyond schema validity
+   it now implies trimmed invisible-character-free text, RFC 3986 links with a real
+   host, non-blank deposits, NFC-unique identifiers and a root-level gene target.
+   That widening is inside the digest and inside no vector count; a 51/0/11 under
+   these bytes is evidence about these bytes only.
 3. **GFA containers for a future FHT lane: out of the draft suite by
    definition.** Reason: the FHT draft suite defines `fht-fasta` only; inventing
    GFA draft fixtures here would mean authoring normative expectations the
@@ -123,12 +136,15 @@ axes in `schemas/provenance.json`.
 * Released-contract acceptance: **228 of 291** shared v0.6.0 vectors decided,
   all passing; the 63 remainder are declared not-run with reason 1 above
   (`docs/CONFORMANCE.md`).
-* Draft evidence, measured 2026-11-18 after a deliberate dated refresh (never
-  added to the 291): FHT **82 pass / 0 fail / 0 not-run** at `0311ddac`; FHGM
-  **51 pass / 0 fail / 11 K4 not-run** at `b1a82f82`. The initial new-suite run
+* Draft evidence, measured 2026-11-18 (Julia 1.13.2) at the round-13 coordinated
+  re-pin, after a deliberate dated refresh (never added to the 291): FHT **82 pass /
+  0 fail / 0 not-run** at `86438f21`; FHGM
+  **51 pass / 0 fail / 11 K4 not-run** at `06176262`. The initial new-suite run
   observed FHGM 49/2/11; native K1/K3 corrections produced 51/0/11. These are
   implementation observations: no contract adoption, publication or released
-  support follows. Historical 2026-11-15 pins observed FHT 72/72 and
+  support follows, the FHGM `pass` carries the widened §4.2 meaning, and four FHT
+  vectors inside the 82 are the suite's own `candidate-unreviewed` promotion
+  candidates. Historical 2026-11-15 pins observed FHT 72/72 and
   FHGM 35/0/8-of-43.
 * Every gap is a named row here with its reason. A missing capability is
   reported as missing; nothing is inferred from the package's function names or
