@@ -5,7 +5,8 @@
 The [Round 16 policy](https://github.com/FAIR-bioHeaders/FAIR-bioHeaders-Specification/issues/211#issuecomment-7042896529)
 supersedes the former conditional agent-merge authorization of 2026-11-16/18 and
 the #268 authority links recorded under it. **Agents must never merge pull
-requests in this repository; a human performs every merge.** Do not enable
+requests; a human performs every merge, across all repositories an agent operates
+in, including external upstream repositories and personal forks.** Do not enable
 auto-merge, enter a merge queue, use another agent or service as a merge proxy,
 or push directly to the default branch as a substitute for merging a PR. Model
 review never grants an agent merge authority; preserve platform protections and
@@ -64,9 +65,12 @@ consumer is implementation work; any change to what a contract *accepts* is a
 schema-contract change and belongs to FAIR-bioHeaders-Specification's cycle, not to
 a PR here.
 
-Rule V7: FHT and FHGM are drafts with **no released contract**. No `schemaVersion`, no
-w3id URL, no registry row and no support claim for either — in code, tests, docs or
-prose. By default a citation of either falls to V5 like any other unknown value (the
+This build retains the earlier FHT/FHGM V7 draft pins. The family has since
+published FHT 1.0 in v0.7.0 and native FHGM 0.1 in v0.8.0; FHGM is a model
+contract, not a header type. Those releases do not change this consumer's pins or
+supported forms. A required draft `schemaVersion` field is not released-contract
+selection. Describe this build's draft lane separately from current family
+publication, as the README does. By default a citation of either falls to V5 like any other unknown value (the
 regression tests pinning this behaviour stay, lane open or shut). This repository
 implements the V7 *opt-in* lane (maintainer direction of 2026-11-14,
 FAIR-bioHeaders-Specification#211 round 10; the sibling JavaScript, Java and R

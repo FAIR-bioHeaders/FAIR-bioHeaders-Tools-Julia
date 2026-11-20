@@ -13,8 +13,9 @@ FHP `'1.2'`, FHGFF3 `'1.2'`):
 
 - Status: development only. Not in the Julia General registry, no release tag. Do not
   claim or describe a published Julia package.
-- FHT and FHGM have no released contract (rule V7): no `schemaVersion`, no w3id URL, no
-  support claim. By default a citation of either is treated like any unknown `schema`
+- This build retains historical FHT/FHGM V7 draft pins; it does not implement the
+  family's subsequently published FHT 1.0 (v0.7.0) or native FHGM 0.1 (v0.8.0).
+  Required fields inside a pinned draft are not released-contract selection. By default a citation of either is treated like any unknown `schema`
   value under rule V5 (read as current FHR). The opt-in `drafts = true` lane reads the
   digest-pinned draft bytes under `drafts/` and warns on every record; draft suites run
   only in the labelled `draft-lane` CI job and never join the shared 291-vector ledger.
