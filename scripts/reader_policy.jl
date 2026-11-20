@@ -15,18 +15,24 @@ for case in manifest["cases"]
         if case["operation"] == "metadata"
             record = get(case, "serialization", "json") == "yaml" ?
                 read_fhr_header(read(file, String)).metadata : JSON.parsefile(file)
-            isempty(validate_record(record))
+            findings = validate_record(record)
+            isempty(findings) ? "valid" :
+                any(f -> occursin("unsupported schema version",f),findings) ? "unsupported-version" : "invalid"
         else
-            verify_file(file; kind = case["format"]).ok
+            result = verify_file(file; kind = case["format"])
+            result.ok ? "valid" :
+                isempty(result.errors) && any(f -> occursin("unsupported schema version",f),result.not_checked) ? "unsupported-version" : "invalid"
         end
     catch e
-        if e isa FAIRBioHeaders.HeaderError || e isa FAIRBioHeaders.UnsupportedContract
-            false
+        if e isa FAIRBioHeaders.UnsupportedContract
+            "unsupported-version"
+        elseif e isa FAIRBioHeaders.HeaderError
+            "invalid"
         else
             rethrow()
         end
     end
-    ok = valid == (case["expected"] == "valid")
+    ok = valid == get(case,"result",case["expected"])
     println(case["id"], ok ? " PASS" : " FAIL")
     global failed += !ok
 end

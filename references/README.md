@@ -24,3 +24,9 @@ The native schema provenance names `versionsRegistryFile` but records no digest
 for that copied registry. It is enumerated as an incomplete recorded reference
 and reports ABSENT rather than inventing a measurement or treating local bytes
 as independent authority. The native schema audit remains a separate check.
+
+Review hardening verifies any recorded native annotated-tag object separately
+from its dereferenced commit, including a same-commit retag negative control.
+An existing native commit is never replaced by companion metadata. Native
+manifest and base-schema declarations are inventoried independently; missing
+or conflicting measurements cannot become FRESH.

@@ -17,15 +17,21 @@ runnable_formats() = collect(keys(FORMAT_KIND))
 struct VectorOutcome
     id::String
     format::String
-    expected::String
+    expected::String       # effective runtime expectation
+    historical_expected::String
+    policy_delta::String
     decided::Bool          # false when this implementation has no layer for the rule
     passed::Bool
     detail::String
 end
 
+# Existing callers retain the same unadjusted outcome constructor.
+VectorOutcome(id,format,expected,decided,passed,detail) =
+    VectorOutcome(id,format,expected,expected,"",decided,passed,detail)
+
 function Base.show(io::IO, o::VectorOutcome)
     print(io, o.decided ? (o.passed ? "PASS " : "FAIL ") : "SKIP ", o.id, " [", o.format,
-          "] expected ", o.expected, isempty(o.detail) ? "" : ": ", o.detail)
+          "] expected ", o.expected, isempty(o.policy_delta) ? "" : " (historical=" * o.historical_expected * "; policy=" * o.policy_delta * ")", isempty(o.detail) ? "" : ": ", o.detail)
 end
 
 """
@@ -49,14 +55,19 @@ function run_conformance(suite::AbstractString; formats = runnable_formats())
         # to the exact historical bytes and explicitly labelled in the result.
         crosswalk = JSON.parsefile(joinpath(@__DIR__, "..", "references", "retirement-crosswalk.json"))
         retired = filter(x -> x["id"] == v["id"], crosswalk["cases"])
+        historical_expected = v["expected"]
+        policy_delta = ""
         if !isempty(retired) && v["expected"] == "valid"
             bytes2hex(SHA.sha256(read(joinpath(suite, v["file"])))) == only(retired)["oldSha256"] ||
                 error("retired source bytes differ: " * v["id"])
             v = Dict{String, Any}(v)
             v["expected"] = "invalid"
             v["rule"] = "R4"
+            policy_delta = "D9-R4; canonical counterpart=" * only(retired)["replacedBy"]
         end
-        push!(outcomes, run_vector(suite, v))
+        result = run_vector(suite, v)
+        push!(outcomes, VectorOutcome(result.id,result.format,result.expected,
+            historical_expected,policy_delta,result.decided,result.passed,result.detail))
     end
     return outcomes
 end
