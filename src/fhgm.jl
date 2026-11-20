@@ -43,7 +43,7 @@
 #
 # Not implemented, and reported rather than skipped:
 #
-# * K4 feature-target resolution: a featureId must resolve, percent-decoded, to exactly
+# * K4 feature-target resolution: a featureId as written must match the decoded ID of exactly
 #   one local gene row, which means reading the GFF3 feature layer. This library reads
 #   the FHGFF3 header and nothing below it: feature lines, SO terms and biology belong
 #   to gff3-validator. `rules["K4"]` is `"not-supported-yet"`, and a caller that has
@@ -79,7 +79,7 @@ const FHGM_RULES = ("B1", "K1", "K2", "K3", "K4", "K5", "K6")
 "The rule this build does not run, and why, for the capability matrix."
 fhgm_not_supported() = Dict("K4" => Dict(
     "status" => "not-supported-yet",
-    "reason" => "K4 resolves a record featureId, percent-decoded, to exactly one local " *
+    "reason" => "K4 compares a record featureId as written to the decoded ID of exactly one local " *
                 "gene row, which needs the GFF3 feature layer; this library reads the " *
                 "FHGFF3 header and nothing below it, so feature lines belong to gff3-validator"))
 
@@ -144,20 +144,6 @@ function _describe_value(v)
     v === nothing && return "null"
     v isa AbstractDict && return "an object"
     return "a $(typeof(v))"
-end
-
-# Percent-decode a featureId the way a GFF3 `ID=` value is decoded. A malformed escape
-# is left as written rather than throwing: the identifier is data, and K4 compares it
-# to whatever the file actually carries.
-function decode_feature_id(v)
-    v isa AbstractString || return ""
-    s = replace(String(v), "+" => "%2B")
-    out = try
-        Base.unescape_string(s)
-    catch
-        nothing
-    end
-    out isa AbstractString ? String(out) : String(v)
 end
 
 # Compiled draft-schema validators, keyed by (role, digest): the digest is part of the
@@ -288,7 +274,17 @@ function _check_snapshot(header; overlay::Bool = false, label::AbstractString = 
     end
 
     file_forms = _reference_forms(header, "header")
-    gene_rows = gene_ids === nothing ? nothing : Set(String.(gene_ids))
+    gene_rows = if gene_ids === nothing
+        nothing
+    else
+        gene_ids isa AbstractVector && all(x -> x isa AbstractString, gene_ids) ||
+            throw(ArgumentError("gene_ids must be a vector of already-decoded gene-row IDs"))
+        counts = Dict{String, Int}()
+        for id in gene_ids
+            counts[String(id)] = get(counts, String(id), 0) + 1
+        end
+        counts
+    end
 
     # The owning checker validates every record's K2 shape before snapshot K3.
     record_messages = [_draft_violations("FHGM/contract/$(entry.sha256)",
@@ -350,14 +346,13 @@ function _check_snapshot(header; overlay::Bool = false, label::AbstractString = 
         )
 
         if gene_rows !== nothing && isempty(record_errors)
-            decoded = decode_feature_id(result["featureId"])
-            if !(decoded in gene_rows)
+            matches = get(gene_rows, result["featureId"], 0)
+            if matches != 1
                 rules["K4"] = "reject"
                 result["featureTarget"] = Dict("verdict" => "reject",
-                                               "detail" => "no local gene row carries the decoded ID " *
-                                                           "$(JSON.json(decoded))")
+                                               "detail" => "$(matches) local gene rows match featureId as written")
                 push!(errors, "$(label) K4 record $(i): its featureId must target one local gene row, " *
-                              "and $(JSON.json(result["featureId"])) matches none")
+                              "and $(JSON.json(result["featureId"])) matches $(matches) rows")
             else
                 result["featureTarget"] = Dict("verdict" => "pass", "detail" => "one local gene row")
             end
@@ -457,7 +452,7 @@ verdict it returns never joins the released-contract errors of any reading.
 * `predecessors`: prior snapshots K6 may resolve against, each
   `(checksum = ..., header = ...)`; each is itself run through K1-K3 and K5 before any
   pointer is judged against it;
-* `gene_ids`: the decoded `ID` of every local gene row, from a caller that took the
+* `gene_ids`: a vector containing the already-decoded `ID` of every local gene row (including duplicates), from a caller that took the
   feature layer elsewhere; with it K4 runs, without it K4 is reported
   `not-supported-yet`.
 """

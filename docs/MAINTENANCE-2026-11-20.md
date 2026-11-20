@@ -32,3 +32,24 @@ independent model review. Review outcome and subsequent fixes belong in the PR
 record. Julia dependency-advisory database coverage was not established by this
 run; native acceptance, source review and workflow/history scans have different
 scopes and do not close that gap.
+
+
+### Independent integration review and workflow hardening
+
+The continuation received independent review by configured GPT-6.1 Terra,
+separate from the Codex GPT-6 implementation author (exact runtime variant
+unexposed). Review covered all eleven Julia runtime modules, the R/Java
+continuation deltas, and the three workflow hardening changes. Source action
+tag/commit receipts and scan logs are retained in the Round 16 handoff packet.
+Actions are pinned to verified full commit IDs, checkout credential persistence
+is disabled, and Julia CI input boundaries use environment variables. Final
+workflow scans reported zero actionlint and zizmor diagnostics. Human merge is
+required; review does not confer agent merge authority.
+
+The reviewer found incorrect record-side escape handling and loss of duplicate
+row multiplicity in optional K4 checks. A record featureId is now compared as
+written against each already-decoded supplied gene-row ID, requiring exactly
+one match. Regression controls cover missing and duplicate rows plus literal
+plus, backslash and percent characters. Reading the actual GFF3 feature layer
+remains outside this library; default K4 stays explicitly unsupported. Module
+documentation now scopes historical draft claims to this consumer's pins.

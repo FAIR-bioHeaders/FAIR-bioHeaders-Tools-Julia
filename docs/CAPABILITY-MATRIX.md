@@ -93,7 +93,7 @@ axes in `schemas/provenance.json`.
    compatibility folding), K5
    (record-reference agreement with the file's genome link) and K6 (predecessor
    resolution against explicitly supplied prior snapshots only). **K4 is
-   `not-supported-yet`**: resolving a `featureId` percent-decoded to exactly one local
+   `not-supported-yet`**: matching a `featureId` as written against the decoded ID of exactly one local
    gene row needs the GFF3 feature layer, which this library does not read (it belongs
    to `gff3-validator`). A caller that supplies `gene_ids` can close K4 itself; the
    draft-suite runner does not; all eleven K4-dependent vectors are
