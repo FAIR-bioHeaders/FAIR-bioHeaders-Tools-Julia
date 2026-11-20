@@ -45,6 +45,17 @@ function run_conformance(suite::AbstractString; formats = runnable_formats())
                                           "format $(fmt) is outside this runner"))
             continue
         end
+        # D9: old manifest bytes remain immutable; new R4 expectation is tied
+        # to the exact historical bytes and explicitly labelled in the result.
+        crosswalk = JSON.parsefile(joinpath(@__DIR__, "..", "references", "retirement-crosswalk.json"))
+        retired = filter(x -> x["id"] == v["id"], crosswalk["cases"])
+        if !isempty(retired) && v["expected"] == "valid"
+            bytes2hex(SHA.sha256(read(joinpath(suite, v["file"])))) == only(retired)["oldSha256"] ||
+                error("retired source bytes differ: " * v["id"])
+            v = Dict{String, Any}(v)
+            v["expected"] = "invalid"
+            v["rule"] = "R4"
+        end
         push!(outcomes, run_vector(suite, v))
     end
     return outcomes
@@ -74,6 +85,7 @@ SHA-256 or truncated SHA-512) show up as the R3 mismatch they cause, so for thos
 R3 mismatch counts too.
 """
 function breaks_rule(result, rule::AbstractString)
+    rule == "R17" && return any(m -> occursin("metadata is incompatible with", m), result.errors)
     rule in CONTRACT_RULES && return any(is_contract_finding, result.errors)
     any(m -> reports_rule(m, rule), result.errors) && return true
     rule in ("R1", "R4") && return any(m -> reports_rule(m, "R3"), result.errors)
@@ -132,7 +144,7 @@ end
 "The FORMAT.md and per-type rules this implementation can decide. Anything else is
 reported as undecided rather than passed."
 implemented_rules() = Set(["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R10", "R11", "R12", "R13",
-                           "R14", "R15", "P1", "P2", "G1", "G2", "G3", "V1", "V2", "V3", "V4", "V5", "V6"])
+                           "R14", "R15", "R17", "P1", "P2", "G1", "G2", "G3", "V1", "V2", "V3", "V4", "V5", "V6"])
 
 "JSON equality as the vectors define it: numbers compare by value, types never convert.
 `true` is not the number 1, so booleans are told apart before numbers."

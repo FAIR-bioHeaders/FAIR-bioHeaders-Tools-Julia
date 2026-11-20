@@ -535,11 +535,11 @@ end
         @test big["a"] == parse(BigInt, "123456789012345678901234567890")
         @test big["b"] == parse(BigInt, "-9223372036854775809")
         @test big["c"] === typemax(Int)
-        @test read_fhr_header("---\na: 1\n").metadata == Dict("a" => 1)
-        @test read_fhr_header("--- \na: 1\n...\n").metadata == Dict("a" => 1)
-        @test read_fhr_header("%YAML 1.1\n---\na: 1\n").metadata == Dict("a" => 1)
-        @test read_fhr_header("%YAML 1.2\n---\na: 1\n").metadata == Dict("a" => 1)
-        @test read_fhr_header("%TAG ! tag:example.com,2000:\n---\na: 1\n").metadata == Dict("a" => 1)
+        @test_throws HeaderError read_fhr_header("---\na: 1\n") # adopted D10/R12
+        @test_throws HeaderError read_fhr_header("--- \na: 1\n...\n") # adopted D10/R12
+        @test_throws HeaderError read_fhr_header("%YAML 1.1\n---\na: 1\n") # adopted D10/R12
+        @test_throws HeaderError read_fhr_header("%YAML 1.2\n---\na: 1\n") # adopted D10/R12
+        @test_throws HeaderError read_fhr_header("%TAG ! tag:example.com,2000:\n---\na: 1\n") # adopted D10/R12
         @test_throws HeaderError read_fhr_header("%TAG ! tag:example.com,2000:\n---\na: !x 1\n")  # used: a tag
         @test read_fhr_header("? a\n: 1\n").metadata == Dict("a" => 1)          # explicit key
         @test read_fhr_header("? a\n").metadata == Dict("a" => nothing)

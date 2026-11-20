@@ -257,3 +257,27 @@ requirement; the bare string plus the MPL-2.0 body in LICENSE is the measured-co
 form. (GitHub's own licence classifier may still report `NOASSERTION` for a
 notice-before-body LICENSE, as it does for the spec and Tools repositories; that is
 expected, not a defect.)
+
+## November 19, 2026 adopted reader-policy implementation
+
+This source implements D9/D10 from shared #211: schema selection precedes
+validation; R4 canonical encoding is checked for root and standard derivedFrom
+checksums without inspecting arbitrary extension payloads; YAML directives and
+document-start wrappers are refused; gzip trailing garbage is rejected, trailing
+NUL padding is accepted, and FHCRC is verified when present. Native supplementary
+runner commands and their exact shared-source pin are in the reader-policy CI
+workflow and `references/reader-policy.json`. This is runtime implementation,
+not a rewrite of frozen released schema patterns.
+
+The historical 291 manifest, fixtures and default golden remain unchanged. A
+byte-bound shared retirement crosswalk records the 30 formerly valid synthetic
+parent fixtures now rejected under R4. Historical expectations remain readable;
+the native historical runner explicitly reports the new effective rejection.
+Where a sibling has a default golden, it stays immutable with explicit policy
+deltas; this Julia package instead retains its byte-bound historical manifest. Current canonical-parent counterparts exercise the original
+predicates independently. Supplementary/current-source results are distinct from
+the v0.6.0 ledger, draft FHT/FHGM receipts and any publication/support claim.
+
+`references/README.md` documents the dynamic advisory reference audit; it never
+refreshes contract/suite/carrier pins automatically. Existing dated 82/62 draft
+receipts are historical, not accepted93/92 or published support.
