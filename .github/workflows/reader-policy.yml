@@ -9,13 +9,16 @@ jobs:
   policy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
           repository: FAIR-bioHeaders/FAIR-bioHeaders-Specification
           ref: 9b5269de0b00186718b07f42b0c48123341ff4de
           path: .policy
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
         with:
           version: '1.12'
       - run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
