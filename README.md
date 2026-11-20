@@ -93,3 +93,5 @@ MPL-2.0 for this repository's own material, with the family's historical USDA-AR
 public-domain notice handled in [`LICENSE`](LICENSE) (this repository holds no such
 material directly; the vendored contract copies travel with the specification
 repository's terms, recorded per file in `schemas/provenance.json`).
+
+Retired predicate evidence: the immutable historical payload is checked against its crosswalk digest, and every native canonical counterpart is checked against its replacement digest before evaluation. The 39 retired invalid native cases execute their canonical counterpart for the original predicate. The 30 historical valid cases retain the explicit D9/R4 rejection check and separately require the canonical counterpart to validate. Thus 159 original unchanged predicates, 39 canonical invalid predicates, and 30 old R4 checks are distinguished; 69 canonical counterpart predicates are independently checked. The 9 crosswalk cases in JSON-LD/microdata remain outside native coverage.

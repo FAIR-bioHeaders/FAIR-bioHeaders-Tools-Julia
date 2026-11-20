@@ -93,7 +93,7 @@ jobs:
           cat "$receipt"
           for pair in conformanceSuiteUsed=true suiteVectors=291 vectorsDecided=228 \
                       vectorsPassed=228 vectorsFailed=0 vectorsUndecided=63 \
-                      historicalVectorsPassed=198 policyDeltaVectors=30 policyDeltaVectorsPassed=30 \
+                      historicalVectorsPassed=159 policyDeltaVectors=69 policyDeltaVectorsPassed=69 \
                       compressedVectorsDecided=11 jsonldUndecided=37 microdataUndecided=26 \
                       schemaAuditFindings=0 draftPinFindings=0 assertionsFailed=0 assertionsErrored=0 \
                       assertionsBroken=0 assertionsOther=0; do

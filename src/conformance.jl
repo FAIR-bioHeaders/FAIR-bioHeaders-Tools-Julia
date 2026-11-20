@@ -57,13 +57,26 @@ function run_conformance(suite::AbstractString; formats = runnable_formats())
         retired = filter(x -> x["id"] == v["id"], crosswalk["cases"])
         historical_expected = v["expected"]
         policy_delta = ""
-        if !isempty(retired) && v["expected"] == "valid"
-            bytes2hex(SHA.sha256(read(joinpath(suite, v["file"])))) == only(retired)["oldSha256"] ||
-                error("retired source bytes differ: " * v["id"])
-            v = Dict{String, Any}(v)
-            v["expected"] = "invalid"
-            v["rule"] = "R4"
-            policy_delta = "D9-R4; canonical counterpart=" * only(retired)["replacedBy"]
+        if !isempty(retired)
+            r = only(retired)
+            bytes2hex(SHA.sha256(read(joinpath(suite,v["file"])))) == r["oldSha256"] || error("retired source bytes differ: " * v["id"])
+            replacement = joinpath(@__DIR__,"..","references","canonical-counterparts",r["replacementFile"])
+            bytes2hex(SHA.sha256(read(replacement))) == r["replacementSha256"] || error("replacementSha256 mismatch: " * v["id"])
+            current = Dict{String,Any}(v)
+            current["file"] = abspath(replacement)
+            # Valid replacements change their self-checksum when canonicalizing a parent.
+            current["checksum"] = nothing
+            counterpart = run_vector(suite,current)
+            counterpart.decided && !counterpart.passed && error("canonical counterpart predicate failed: " * r["replacedBy"] * ": " * counterpart.detail)
+            if v["expected"] == "valid"
+                v = Dict{String,Any}(v)
+                v["expected"] = "invalid"
+                v["rule"] = "R4"
+                policy_delta = "D9-R4; independently passed canonical counterpart=" * r["replacedBy"]
+            else
+                v = current
+                policy_delta = "canonical predicate counterpart=" * r["replacedBy"]
+            end
         end
         result = run_vector(suite, v)
         push!(outcomes, VectorOutcome(result.id,result.format,result.expected,

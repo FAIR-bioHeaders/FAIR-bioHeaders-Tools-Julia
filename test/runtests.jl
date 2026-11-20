@@ -1012,10 +1012,10 @@ end
         STATE["historicalVectorsPassed"] = count(o -> o.decided && o.passed && isempty(o.policy_delta),outcomes)
         STATE["policyDeltaVectors"] = count(o -> !isempty(o.policy_delta),outcomes)
         STATE["policyDeltaVectorsPassed"] = count(o -> o.decided && o.passed && !isempty(o.policy_delta),outcomes)
-        @test STATE["historicalVectorsPassed"] == 198
-        @test STATE["policyDeltaVectors"] == 30
-        @test STATE["policyDeltaVectorsPassed"] == 30
-        @test all(o -> isempty(o.policy_delta) || (o.historical_expected == "valid" && o.expected == "invalid"),outcomes)
+        @test STATE["historicalVectorsPassed"] == 159
+        @test STATE["policyDeltaVectors"] == 69
+        @test STATE["policyDeltaVectorsPassed"] == 69
+        @test all(o -> isempty(o.policy_delta) || ((o.historical_expected == "valid" && o.expected == "invalid") || startswith(o.policy_delta,"canonical predicate counterpart=")),outcomes)
         STATE["vectorsFailed"] = sum(o -> o.decided && !o.passed, outcomes)
         STATE["vectorsUndecided"] = count(o -> !o.decided, outcomes)
         STATE["compressedVectorsDecided"] = let m = JSON.parsefile(joinpath(suite, "manifest.json"))
