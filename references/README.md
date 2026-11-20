@@ -18,3 +18,8 @@ The generated inventory explicitly lists coverage gaps. Source/suite pins remain
 separate. Full external suite payload completeness is not asserted from a manifest
 pin. Actual native draft semantics and final accepted 93/92 suites remain separate
 from these historical reference comparisons; no automatic refresh is performed.
+
+The native schema provenance names `versionsRegistryFile` but records no digest
+for that copied registry. It is enumerated as an incomplete recorded reference
+and reports ABSENT rather than inventing a measurement or treating local bytes
+as independent authority. The native schema audit remains a separate check.

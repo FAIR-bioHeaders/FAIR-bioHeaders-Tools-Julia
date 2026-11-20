@@ -43,6 +43,8 @@ def inventory(root=ROOT):
         ref=row.get("release") or row.get("ref"); commit=prov.get("tagCommits",{}).get(ref) if ref!="main" else prov.get("mainCommit")
         add("schemas-"+local.replace("/","-"),source,commit if ref=="main" else ref,commit,"draft-contract" if ref=="main" else "released-contract",
             [file("schemas/"+local,row.get("sourcePath"),row.get("sha256"))],"draft" if ref=="main" else "released")
+    add("native-version-registry",source,prov.get("mainCommit"),prov.get("mainCommit"),"copied-tree",
+        [file("schemas/"+prov["versionsRegistryFile"],"schemas/versions.json",None)],"draft")
     drafts=load("drafts/provenance.json")
     for typ,row in drafts["drafts"].items():
         repo=repository(row["repositoryUrl"])
