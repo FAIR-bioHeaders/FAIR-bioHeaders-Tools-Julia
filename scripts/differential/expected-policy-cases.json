@@ -1,0 +1,21 @@
+{
+  "decision": "shared #211 D10",
+  "cases": [
+    {
+      "id": "d10-yaml-1-1",
+      "text": "%YAML 1.1\n---\na: 1\n"
+    },
+    {
+      "id": "d10-yaml-1-2",
+      "text": "%YAML 1.2\n---\na: 1\n"
+    },
+    {
+      "id": "d10-tag-directive",
+      "text": "%TAG ! tag:example.com,2000:\n---\na: 1\n"
+    },
+    {
+      "id": "d10-document-start",
+      "text": "---\na: 1\n"
+    }
+  ]
+}

@@ -164,17 +164,18 @@ jobs:
       - name: Bundled-schema provenance audit (independent Python implementation)
         run: python3 scripts/check_bundled_schemas.py
 
-      - name: Same verdict as the toolkit on the vectors and the released examples
+      - name: Frozen-toolkit verdict differential with exact D9 policy deltas
         run: |
           # Every FASTA, GFA, FHP and FHGFF3 vector and example file: this package's
           # verify_file against fhr-fasta-validate / fhr-gfa-validate / fhr-gff3-validate.
           julia --project=. scripts/differential/verdicts.jl .spec-v0.6.0/conformance .spec-v0.6.0/examples
 
-      - name: Same reading as the toolkit on generated YAML
+      - name: Frozen-toolkit YAML differential with explicit D10 lexer-bound deltas
         run: |
           # Curated edge cases, random strings over YAML's indicator characters and random
           # nested documents: read_fhr_header against bioheaders.load_yaml with its record
           # checks (the same value, or both reject).
+          python3 scripts/differential/compare_yaml.py --self-test
           python3 scripts/differential/gen_cases.py "$RUNNER_TEMP/cases.json" "${{ github.run_id }}" 6000 4000
           python3 scripts/differential/py_yaml.py "$RUNNER_TEMP/cases.json" "$RUNNER_TEMP/py.json"
           julia --project=. scripts/differential/yaml_cases.jl "$RUNNER_TEMP/cases.json" "$RUNNER_TEMP/jl.json"

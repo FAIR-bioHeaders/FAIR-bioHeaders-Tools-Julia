@@ -281,3 +281,14 @@ the v0.6.0 ledger, draft FHT/FHGM receipts and any publication/support claim.
 `references/README.md` documents the dynamic advisory reference audit; it never
 refreshes contract/suite/carrier pins automatically. Existing dated 82/62 draft
 receipts are historical, not accepted93/92 or published support.
+
+The supplemental differential remains frozen at Python toolkit0.12.0. Its
+November19 policy-aware run compared237 files:207 identical verdicts and exactly
+30 named D9/R4 differences bound to the historical crosswalk IDs and SHA256
+bytes, requiring Julia's sole noncanonical-parent finding. The YAML comparison
+with seed7026285821 measured11,259 texts, zero unexplained differences and70
+explicit D10/R12 differences. Four named directive/wrapper controls must occur;
+all other classified differences require a real PyYAML directive/document-start
+token, Python acceptance and the exact Julia R12 diagnostic. Quoted text and
+unrelated errors are not exceptions (eight classifier controls). Neither result
+is described as universal agreement with the frozen oracle or as new support.

@@ -3,7 +3,7 @@
 # Usage: gen_cases.py OUT.json SEED [N_RANDOM] [N_DOCS]
 import json, random, sys, os
 random.seed(int(sys.argv[2]) if len(sys.argv) > 2 else 1)
-cases = []
+cases = [case["text"] for case in json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "expected-policy-cases.json")))["cases"]]
 # 1. curated
 cur = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'curated.txt')).read().replace('<BOM>', '\ufeff').split('\n')
 # split curated by blank-line-free entries: treat each "case" as lines grouped until next top-level 'a:'/'x:' is ambiguous; simpler: also add single lines and pairs
