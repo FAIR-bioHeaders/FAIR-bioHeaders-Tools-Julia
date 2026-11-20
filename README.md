@@ -12,10 +12,8 @@ of [FAIR-bioHeaders-Specification](https://github.com/FAIR-bioHeaders/FAIR-bioHe
 release **v0.6.0** (contract versions FHR 2.1, FHP 1.2, FHGFF3 1.2), each recorded with its
 SHA-256 in `schemas/provenance.json`.
 
-FHT and FHGM were **drafts with no released contract** for the whole development
-history of this package (rule V7 of `docs/SCHEMA-VERSIONS.md` keeps a draft out of
-every release form), and this repository is built and pinned against that state. The
-family has since moved: as of specification **v0.7.0** (released 2026-11-20) FHT 1.0 is
+FHT and FHGM first entered this package through a development-only V7 lane,
+before the family published their released forms. The family has since moved: as of specification **v0.7.0** (released 2026-11-20) FHT 1.0 is
 a released contract with a registry row and a w3id URL, and specification **v0.8.0**
 publishes FHGM 0.1 as a *native model contract* (`model-contracts/fhgm/0.1/`) — still
 not a header type, so it has no file-bound `schemaVersion` and no header-registry row.
@@ -26,6 +24,12 @@ explicit per-call rule-V7 opt-in (`drafts = true`), warning on every record. Rel
 FHT support here requires a deliberate, dated dependency/pin change; until then treat
 the draft wording as *this build's* state and the v0.7.0/v0.8.0 wording as the
 family's. See `docs/CAPABILITY-MATRIX.md`.
+
+The deliberate 2026-11-20 PR19 CI repair refreshes the development-lane FHT
+contract/suite and FHGM suite pins. It adds the owning FHT C1 BUSCO sum check
+when all component counts and total are supplied. Default selection and the
+released v0.6.0 registry stay unchanged; this refresh is not a promotion to
+released FHT or native FHGM support. See [development evidence](docs/CONFORMANCE.md#development-suites-are-separate-evidence-not-this-ledger).
 
 ## What it does
 

@@ -26,8 +26,8 @@ the 291.
 
 | operation | FHR | FHP | FHGFF3 | FHT | FHGM |
 | --- | --- | --- | --- | --- | --- |
-| read the embedded header block | yes | yes | yes | draft lane (`;~` FASTA block like FHR; issue #2; no released contract exists and none is claimed) | no - not a file-bound header type; FHGM records ride inside an FHGFF3 header under `x-fhgm-models` |
-| verify the SHA-512/256 checksum over exact bytes (R1-R5) | yes | yes | yes | draft lane (all 82 pinned FHT suite vectors exercise this byte layer) | n/a - integrity of an FHGM-carrying file is the enclosing FHGFF3 header's checksum, which is `yes` above |
+| read the embedded header block | yes | yes | yes | draft lane (`;~` FASTA block like FHR; issue #2; no released FHT contract selected by this consumer and none is claimed) | no - not a file-bound header type; FHGM records ride inside an FHGFF3 header under `x-fhgm-models` |
+| verify the SHA-512/256 checksum over exact bytes (R1-R5) | yes | yes | yes | draft lane (all 93 pinned FHT suite vectors exercise this byte layer) | n/a - integrity of an FHGM-carrying file is the enclosing FHGFF3 header's checksum, which is `yes` above |
 | select the contract (rules V1-V6) | yes | yes | yes | draft lane: the owning repository's raw-main citation selects the pinned bytes with `drafts = true`; a release-shaped URL (w3id or tag) for FHT stays V5 with the lane open or shut | n/a - FHGM records carry no `schema` field; the file is routed by its FHGFF3 citation |
 | validate against the contract (draft/2020-12, formats bound) | yes | yes | yes | draft lane (against the pinned `drafts/fht-draft.json`, digest re-verified on load) | draft lane, partial: B1 and K1, K2, K3, K5, K6 implemented in `src/fhgm.jl`; **K4 `not-supported-yet`** - resolving a `featureId` needs the GFF3 feature layer, which belongs to `gff3-validator`; reason in §4.2 |
 | rule R11 record-marker warning | yes | yes | n/a (GFF3 lines are not FASTA) | draft lane | no |
@@ -66,8 +66,8 @@ re-digest-checked against `schemas/provenance.json` on every test run
 | FHR | `1` (v0.3.0/v0.3.1), `2.0` (v0.4.0-v0.4.2), `2.1` (v0.5.0/v0.6.0) | `current/fhr.json` = v0.6.0 bytes (= v0.5.0) | 98 `fasta` vectors (incl. the rule V6 FHR 1 paths), selection tests |
 | FHP | `1.0` (v0.4.0-v0.4.2), `1.1` (v0.5.0), `1.2` (v0.6.0) | `current/fhp.json` | 36 `fhp-fasta` vectors, version-gated conditional tests |
 | FHGFF3 | `1.0` (v0.4.0-v0.4.2), `1.1` (v0.5.0), `1.2` (v0.6.0) | `current/fhgff3.json` | 38 `fhgff3` vectors, `annotates`-form tests |
-| FHT | none - **no released contract** (rule V7: no schemaVersion, no registry row, no w3id, no support claim). `drafts/fht-draft.json` is a digest-pinned *draft*, not a bundled contract: it appears in no `registry.json` or `versions.json`, and is read only through the opt-in lane | none - `main` is never consulted at run time | the V7 default-off regression tests; lane selection/warning tests; 82/82 vectors of the pinned FHT suite/contract at `86438f21` (4 of the 82 are the suite's own `candidate-unreviewed` promotion candidates, scored as stated, not as reviewed) |
-| FHGM | none - **no released contract, and not a header type**: records ride inside an FHGFF3 header under `x-fhgm-models`; `drafts/fhgm-model-draft.json` + transport overlay are digest-pinned drafts under the same discipline | none | 51 pass / 0 fail / 11 not-run (`K4`) of 62 pinned FHGM suite vectors at `06176262`; **a `pass` under these bytes means the FHGM#29-widened model layer** (trimmed invisible-character-free text, real-host RFC 3986 links, non-blank deposits, NFC-unique ids, root gene target) and is not comparable to a pass under the 2026-11-15 bytes; see §4.2 |
+| FHT | none in this consumer released registry; opt-in development bytes only, including required schemaVersion 1.0; no released URL selection | none - main is never fetched at run time | 93/93 development vectors at suite `e6ba1c73`, contract `eb6c36d3`; C1 includes complete BUSCO count arithmetic |
+| FHGM | none in this consumer released registry; historical x-fhgm-models transport, distinct from published native FHGM; not a header type | none | 74 pass /0 fail /18 K4-dependent not-run of92 at suite `e8e26d7c`; unchanged record contract `06176262`; partial model pass does not establish a gene target |
 
 Releases `v0.4.1`/`v0.4.2` repeat the `v0.4.0` bytes and `v0.6.0`'s `fhr.json`
 repeats `v0.5.0`'s: release identity and byte identity are recorded as separate
@@ -96,22 +96,12 @@ axes in `schemas/provenance.json`.
    `not-supported-yet`**: matching a `featureId` as written against the decoded ID of exactly one local
    gene row needs the GFF3 feature layer, which this library does not read (it belongs
    to `gff3-validator`). A caller that supplies `gene_ids` can close K4 itself; the
-   draft-suite runner does not; all eleven K4-dependent vectors are
+   draft-suite runner does not; all eighteen K4-dependent vectors are
    explicitly not-run, including expected-valid cases naming K4. No feature-layer
-   capability is added by this proposal. Two things must be read with this row, and
-   neither is a number. First, the abstention is an **open upstream question, not a
-   settled rule**: FHGM#22 (does `layers.model` presuppose feature rows?), FHGM#27 and
-   FHGM#28 and FAIR-bioHeaders-Specification#241 remain unresolved, the README there
-   still calls the layers orthogonal while the layer-semantics proposal is an
-   unanswered question, and JS#11 documents the failure modes any resolution has to
-   answer - a zero-row or unreadable feature layer reported as `reject` where the
-   validator says `absent-layer`, and an empty `ID=` turning a K4 `pass` into an
-   unfalsifiable claim. Second, the bytes pinned since the 2026-11-18 re-pin contain
-   FHGM#29, which **widened what a model-layer `pass` asserts**: beyond schema validity
-   it now implies trimmed invisible-character-free text, RFC 3986 links with a real
-   host, non-blank deposits, NFC-unique identifiers and a root-level gene target.
-   That widening is inside the digest and inside no vector count; a 51/0/11 under
-   these bytes is evidence about these bytes only.
+   capability is added by this refresh. Model-layer schema/text/link and identifier
+   checks remain distinct from feature evidence; the suite's current rule and
+   evidence requirements are pinned independently from its unchanged contract.
+   A passing partial model verdict does not establish a root-level gene target.
 3. **GFA containers for a future FHT lane: out of the draft suite by
    definition.** Reason: the FHT draft suite defines `fht-fasta` only; inventing
    GFA draft fixtures here would mean authoring normative expectations the
@@ -127,7 +117,7 @@ axes in `schemas/provenance.json`.
    read through it, and the two development suites executed only in the separate,
    labelled `draft-lane` CI job. Still absent, and enforced by `audit_bundled_schemas`
    plus tests: any FHT/FHGM row in `schemas/registry.json` or `versions.json`, any
-   `schemaVersion`, w3id URL, release tag or support claim, and any draft vector in
+   released selection registration, w3id URL or release tag in this consumer registry, and any draft vector in
    the shared 291. C3 parent-link verdicts exist only runner-side for the FHT draft
    suite, not as a package API (§1).
 
@@ -136,16 +126,11 @@ axes in `schemas/provenance.json`.
 * Released-contract acceptance: **228 of 291** shared v0.6.0 vectors decided,
   all passing; the 63 remainder are declared not-run with reason 1 above
   (`docs/CONFORMANCE.md`).
-* Draft evidence, measured 2026-11-18 (Julia 1.13.2) at the round-13 coordinated
-  re-pin, after a deliberate dated refresh (never added to the 291): FHT **82 pass /
-  0 fail / 0 not-run** at `86438f21`; FHGM
-  **51 pass / 0 fail / 11 K4 not-run** at `06176262`. The initial new-suite run
-  observed FHGM 49/2/11; native K1/K3 corrections produced 51/0/11. These are
-  implementation observations: no contract adoption, publication or released
-  support follows, the FHGM `pass` carries the widened §4.2 meaning, and four FHT
-  vectors inside the 82 are the suite's own `candidate-unreviewed` promotion
-  candidates. Historical 2026-11-15 pins observed FHT 72/72 and
-  FHGM 35/0/8-of-43.
+* Development evidence, measured 2026-11-20 after the deliberate PR19 refresh:
+  FHT **93/0/0** at suite `e6ba1c73`; FHGM **74/0/18** at suite `e8e26d7c`.
+  The18 cases need the unimplemented feature-layer boundary. See
+  `docs/CONFORMANCE.md` for exact pins, C1 arithmetic and the owning D3
+  file-identity-only review. Earlier counts remain historical, never added to291.
 * Every gap is a named row here with its reason. A missing capability is
   reported as missing; nothing is inferred from the package's function names or
   from the reference toolkit's coverage.

@@ -65,7 +65,8 @@ consumer is implementation work; any change to what a contract *accepts* is a
 schema-contract change and belongs to FAIR-bioHeaders-Specification's cycle, not to
 a PR here.
 
-This build retains the earlier FHT/FHGM V7 draft pins. The family has since
+This build retains the explicit FHT/FHGM V7 development lane; its pins were
+deliberately refreshed by the user-authorized PR19 CI repair on 2026-11-20. The family has
 published FHT 1.0 in v0.7.0 and native FHGM 0.1 in v0.8.0; FHGM is a model
 contract, not a header type. Those releases do not change this consumer's pins or
 supported forms. A required draft `schemaVersion` field is not released-contract

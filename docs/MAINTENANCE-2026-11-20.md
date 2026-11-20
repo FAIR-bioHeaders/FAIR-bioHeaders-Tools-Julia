@@ -53,3 +53,14 @@ one match. Regression controls cover missing and duplicate rows plus literal
 plus, backslash and percent characters. Reading the actual GFF3 feature layer
 remains outside this library; default K4 stays explicitly unsupported. Module
 documentation now scopes historical draft claims to this consumer's pins.
+
+## Subsequent user-authorized PR19 CI repair
+
+The earlier Round16 no-repin outcome remains historical. A subsequent request to
+fix PR19 authorizes this deliberate, dated development-pin refresh. FHT contract
+and suite revisions and the FHGM suite revision move together with provenance,
+CI receipt counts and documentation; released schemas/registry and the shared291
+payloads do not change. FHGM record/overlay bytes remain identical. The refreshed
+FHT suite exposed missing C1 BUSCO sum enforcement, now scoped to explicit FHT
+opt-in validation with integral-number, partial-count and overflow regressions.
+Current results and exact limitations are in docs/CONFORMANCE.md and the PR.

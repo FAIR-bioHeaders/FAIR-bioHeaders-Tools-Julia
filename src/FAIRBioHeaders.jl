@@ -23,7 +23,8 @@ What is native here and what is delegated:
   contracts. `JSONSchema.jl` is not used: it silently ignores `format`, `minContains`,
   `maxContains` and `\$ref` siblings, and falsely rejects a legal FHGFF3 genome link.
 
-This consumer retains historical FHT/FHGM draft pins. The family has since published
+This consumer keeps FHT/FHGM in its opt-in development lane, with pins deliberately
+refreshed on 2026-11-20. The family has published
 FHT 1.0 in specification v0.7.0 and native FHGM model contract 0.1 in v0.8.0; FHGM is
 not a header type. This build does not adopt those released forms: its own registry
 has no released entry for either, and their citations remain subject to its existing

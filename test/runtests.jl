@@ -830,6 +830,34 @@ end
         rm(path)
     end
 
+    @testset "FHT C1 completeness arithmetic" begin
+        meta = ["schema: $FHT_CITATION", "schemaVersion: '1.0'",
+                "transcriptome: Arithmetic control", "assemblyType: de novo",
+                "taxon:", "  name: Homo sapiens", "version: 1.0.0",
+                "metadataAuthor:", "- name: Test author", "dateCreated: '2026-01-01'"]
+        text, _ = build_file(meta, ">tr1\nACGU\n")
+        md = read_fhr_file(Vector{UInt8}(codeunits(text)), "fasta").metadata
+        md["completeness"] = Dict{String,Any}("lineageDataset" => "insecta_odb10", "completeSingle" => 2,
+            "completeDuplicated" => 1, "fragmented" => 1, "missing" => 0, "total" => 4)
+        @test isempty(validate_record(md; drafts = true))
+        for total in (3, 5)
+            md["completeness"]["total"] = total
+            @test any(occursin("C1: completeness", e) for e in validate_record(md; drafts = true))
+        end
+        md["completeness"]["total"] = 4.0
+        @test isempty(validate_record(md; drafts = true))
+        # Optional partial counts are not zero-filled or given invented sums.
+        delete!(md["completeness"], "missing")
+        md["completeness"]["total"] = 99
+        partial = validate_record(md; drafts = true)
+        @test !isempty(partial) # requiredness remains the schema's decision
+        @test !any(occursin("C1: completeness", e) for e in partial)
+        # A wrapping machine-integer sum would incorrectly equal zero here.
+        md["completeness"] = Dict{String,Any}("lineageDataset" => "insecta_odb10", "completeSingle" => typemax(Int),
+            "completeDuplicated" => typemax(Int), "fragmented" => 2, "missing" => 0, "total" => 0)
+        @test any(occursin("C1: completeness", e) for e in validate_record(md; drafts = true))
+    end
+
     @testset "suite pin enforced by the runner's guard" begin
         # The real registry states complete suite pins for both drafts.
         for t in draft_types()
@@ -838,7 +866,7 @@ end
             @test occursin(r"\A[0-9a-f]{64}\z", pin.sha256)
             @test occursin(r"\A[0-9a-f]{40}\z", pin.commit)
         end
-        @test draft_suite_pin("FHT").vectors == 82 && draft_suite_pin("FHGM").vectors == 62
+        @test draft_suite_pin("FHT").vectors == 93 && draft_suite_pin("FHGM").vectors == 92
         # The guard, exercised both ways on synthetic pins and manifests: verified,
         # drift on one byte (byte-verified mutation), missing manifest, escaping path.
         good = (type = "CTRL", repository = "x", stated = true, partial = false,

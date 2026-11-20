@@ -240,12 +240,9 @@ jobs:
           julia --project=. scripts/draft_pins.jl --check-contract .upstream/FHT-Specification FHT
           julia --project=. scripts/draft_pins.jl --check-contract .upstream/FHGM-Specification FHGM
 
-      # Round-13 coordinated re-pin, measured 2026-11-18: contract and suite claims
-      # coincide at the pinned files' last-touch commits - FHT 86438f21 (82 vectors)
-      # and FHGM 06176262 (62 vectors); the transport overlay's own last-touch is
-      # 019bc29e, and its bytes are unchanged through the FHGM head. Every pinned
-      # digest reproduces byte-identically at its recorded commit; the job's guards
-      # below re-confirm that. No adoption or publication follows from this job.
+      # Deliberate 2026-11-20 refresh: FHT contract eb6c36d3 and suite e6ba1c73
+      # are separate last-touch commits (93 vectors). FHGM contract/overlay are
+      # unchanged; suite e8e26d7c has 92 vectors. Verify both pins independently.
       - name: Move each checkout to the SUITE revision its pin names
         env:
           FHT_SUITE_COMMIT: ${{ steps.pins.outputs.fht-suite-commit }}
@@ -319,12 +316,12 @@ jobs:
             exit 1
           fi
           cat "$receipt"
-          # Measured 2026-11-18: FHT 82 pass;
-          # FHGM 51 pass / 0 fail / 11 K4 not-run after native K1/K3 fixes.
+          # Measured 2026-11-20 after deliberate pin refresh: FHT 93 pass;
+          # FHGM 74 pass / 0 fail / 18 K4-dependent not-run.
           # Historical pins observed 72 and 35/0/8-of-43 respectively.
           for pair in lane=draft-not-acceptance sharedLedgerTouched=false \
-                      fhtVectors=82 fhtPass=82 fhtFail=0 fhtNotRun=0 \
-                      fhgmVectors=62 fhgmPass=51 fhgmFail=0 fhgmNotRun=11 fhgmNotRunRule=K4; do
+                      fhtVectors=93 fhtPass=93 fhtFail=0 fhtNotRun=0 \
+                      fhgmVectors=92 fhgmPass=74 fhgmFail=0 fhgmNotRun=18 fhgmNotRunRule=K4; do
             key=${pair%%=*}; want=${pair##*=}
             got=$(sed -n "s/^$key=//p" "$receipt")
             if [ "$got" != "$want" ]; then
