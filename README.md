@@ -115,7 +115,13 @@ checksum line), `metadata` (parsed header, or `nothing` when none was found),
 
 gzip and BGZF inputs (`.gz`) are decompressed transparently because R1 hashes the
 decompressed bytes; a truncated stream is reported as an error, never as an
-empty file. The layered functions (`scan_lines`, `header_checksum`,
+empty file. Whole-buffer helpers `decompress_gzip` and `read_file_bytes` have no decompressed
+size cap: call them only when you trust the expanded size to fit memory, rather
+than inferring safety from the compressed file size. Prefer `verify_file` for
+streaming verification of large or untrusted files. Streaming bounds retained
+memory; it does not impose a total processing-time or input-size budget.
+
+The layered functions (`scan_lines`, `header_checksum`,
 `read_fhr_header`, `select_contract`, `validate_record`, …) expose the same
 pipeline one rule at a time; `docs/CAPABILITY-MATRIX.md` is the type × operation
 table, including the named holes.
