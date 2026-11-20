@@ -115,3 +115,27 @@ failures: `carrier-cites-raw-main` and `model-ids-equal-under-nfc`. The earlier
 measurements remain in commit `cfbab3d8ee028734f521ae0f0252629a246b0cbd`.
 These numbers never enter the 291/228/63 released ledger and convey no released
 FHT/FHGM support. Rule V7, adoption and publication gates stay unchanged.
+
+## Retired predicate accounting (2026-11-19)
+
+What "the historical corpus is preserved" means concretely for the D9
+canonical-parent retirements (moved verbatim in substance from the README,
+restructured for readers; no numbers changed):
+
+* The immutable historical payload is checked against its crosswalk digest, and
+  every native canonical counterpart is checked against its replacement digest,
+  before either is evaluated — bytes that do not match their record are never
+  scored.
+* The **39 retired invalid** native cases execute their canonical counterpart
+  for the original predicate: the rejection is re-proved on the replacement
+  bytes, not inherited.
+* The **30 historical valid** cases retain the explicit D9/R4 rejection check
+  *and* separately require the canonical counterpart to validate; both
+  directions are asserted.
+* Totals distinguished: **159** original unchanged predicates, **39** canonical
+  invalid predicates and **30** old R4 checks, with **69** canonical counterpart
+  predicates independently checked alongside them.
+* The **9** crosswalk cases that live in JSON-LD/microdata serializations
+  remain outside native coverage — this package reads header bytes, not HTML
+  metadata or JSON-LD documents.
+

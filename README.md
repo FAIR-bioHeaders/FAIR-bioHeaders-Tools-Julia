@@ -12,12 +12,20 @@ of [FAIR-bioHeaders-Specification](https://github.com/FAIR-bioHeaders/FAIR-bioHe
 release **v0.6.0** (contract versions FHR 2.1, FHP 1.2, FHGFF3 1.2), each recorded with its
 SHA-256 in `schemas/provenance.json`.
 
-FHT and FHGM have **no released contract** (rule V7 of `docs/SCHEMA-VERSIONS.md` keeps a
-draft out of every release form): by default this package recognises neither type — a
-citation of either falls to rule V5 like any unknown value — and no `schemaVersion` or
-w3id claim exists for either anywhere in the repository. An explicit, per-call rule-V7
-opt-in (`drafts = true`) reads the *pinned* draft bytes under `drafts/`, warning on every
-record; see `docs/CAPABILITY-MATRIX.md`.
+FHT and FHGM were **drafts with no released contract** for the whole development
+history of this package (rule V7 of `docs/SCHEMA-VERSIONS.md` keeps a draft out of
+every release form), and this repository is built and pinned against that state. The
+family has since moved: as of specification **v0.7.0** (released 2026-11-20) FHT 1.0 is
+a released contract with a registry row and a w3id URL, and specification **v0.8.0**
+publishes FHGM 0.1 as a *native model contract* (`model-contracts/fhgm/0.1/`) — still
+not a header type, so it has no file-bound `schemaVersion` and no header-registry row.
+**This package has not been promoted to either released form and claims no support for
+them**: it still recognises neither type by default — a citation of either falls to
+rule V5 like any unknown value — and reads the pinned draft bytes only through the
+explicit per-call rule-V7 opt-in (`drafts = true`), warning on every record. Released
+FHT support here requires a deliberate, dated dependency/pin change; until then treat
+the draft wording as *this build's* state and the v0.7.0/v0.8.0 wording as the
+family's. See `docs/CAPABILITY-MATRIX.md`.
 
 ## What it does
 
@@ -39,11 +47,27 @@ Python toolkit's `hashlib` digest; the measurement is recorded in
 (Apache-2.0) with `assert_format = true`; the same study records why `JSONSchema.jl` is not
 used.
 
+## Requirements
+
+**Julia 1.12 or later** — a hard prerequisite, not a preference: the SHA-512/256
+digest this package verifies with is the stdlib `SHA.SHA2_512_256_CTX` API, which
+does not exist on Julia 1.10/1.11 (measured: stdlib SHA 0.7.0 lacks it and it cannot
+be supplied from the registry). `Project.toml` declares `julia = "1.12"`; do not
+work around it. Development is tested on Julia 1.13.2 (measured 2026-11-20).
+Dependencies are declared with bounds in `Project.toml` (`CorvusJsonSchema` for
+draft-2020-12 validation, `CodecZlib`/`TranscodingStreams` for gzip/BGZF input);
+`Pkg.instantiate()` resolves them.
+
 ## Install (development)
+
+Nothing is published: no General registration (probed against
+`JuliaRegistries/General` again on 2026-11-20: not present) and no GitHub Release
+for this repository. Add it straight from the repository — this works today against
+`main`:
 
 ```julia
 import Pkg
-Pkg.add(url = "https://github.com/FAIR-bioHeaders/FAIR-bioHeaders-Tools-Julia")   # after the first maintainer merge
+Pkg.add(url = "https://github.com/FAIR-bioHeaders/FAIR-bioHeaders-Tools-Julia")
 ```
 
 or, from a checkout:
@@ -51,6 +75,10 @@ or, from a checkout:
 ```julia
 ] develop /path/to/this/repo
 ```
+
+A source `add`/`develop` tracks whatever `main` holds at clone time; it is not a
+release and not a frozen artifact. For reproducibility, record the commit you
+installed.
 
 ## Use
 
@@ -61,6 +89,32 @@ r.ok          # true only when bytes, header rules and contract all conform
 r.computed    # base64 SHA-512/256 the file must state
 println(r)    # errors, warnings and what was not checked, per rule
 ```
+
+`verify_file(path; kind = nothing, validate = true, drafts = false)` returns a
+`VerifyResult` with fields `path`, `kind` (`"fasta"`, `"fhp-fasta"`, `"gfa"` or
+`"fhgff3"`, from the file name with any `.gz` stripped), `ok`,
+`stated` / `computed` (checksums; `stated === nothing` when the file carries no
+checksum line), `metadata` (parsed header, or `nothing` when none was found),
+`errors`, `warnings` and `not_checked`. Options:
+
+* `kind` — override the name-based guess (`verify_file(p, kind = "gff3")`); when
+  the name is ambiguous and no `kind` is passed, `ok` is `false` with an
+  explanatory error rather than a guess.
+* `validate = false` — stop after the byte/header layers: the checksum and YAML
+  portability verdicts still stand, the contract decision is reported in
+  `not_checked` instead of silently implied.
+* `drafts = true` — open the rule-V7 lane per call (see the draft paragraph
+  above): pinned FHT bytes are re-digest-checked against
+  `drafts/provenance.json` on load, records carry the V7 warning, and FHGM
+  records riding in an FHGFF3 header get a separate `r.fhgm` verdict that never
+  alters the released result. With the default `false`, none of that runs.
+
+gzip and BGZF inputs (`.gz`) are decompressed transparently because R1 hashes the
+decompressed bytes; a truncated stream is reported as an error, never as an
+empty file. The layered functions (`scan_lines`, `header_checksum`,
+`read_fhr_header`, `select_contract`, `validate_record`, …) expose the same
+pipeline one rule at a time; `docs/CAPABILITY-MATRIX.md` is the type × operation
+table, including the named holes.
 
 A header is created and its checksum computed by the Python toolkit
 (`bioheaders combine`), never by hand and never by this package: it is a reader and
@@ -94,4 +148,4 @@ public-domain notice handled in [`LICENSE`](LICENSE) (this repository holds no s
 material directly; the vendored contract copies travel with the specification
 repository's terms, recorded per file in `schemas/provenance.json`).
 
-Retired predicate evidence: the immutable historical payload is checked against its crosswalk digest, and every native canonical counterpart is checked against its replacement digest before evaluation. The 39 retired invalid native cases execute their canonical counterpart for the original predicate. The 30 historical valid cases retain the explicit D9/R4 rejection check and separately require the canonical counterpart to validate. Thus 159 original unchanged predicates, 39 canonical invalid predicates, and 30 old R4 checks are distinguished; 69 canonical counterpart predicates are independently checked. The 9 crosswalk cases in JSON-LD/microdata remain outside native coverage.
+Historical-corpus accounting (retired predicates and canonical counterparts) is documented in [docs/CONFORMANCE.md](docs/CONFORMANCE.md#retired-predicate-accounting-2026-11-19).
