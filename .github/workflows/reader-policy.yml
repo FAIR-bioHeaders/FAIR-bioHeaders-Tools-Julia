@@ -1,0 +1,22 @@
+name: Adopted reader policies
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: FAIR-bioHeaders/FAIR-bioHeaders-Specification
+          ref: 9b5269de0b00186718b07f42b0c48123341ff4de
+          path: .policy
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12'
+      - run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+      - run: julia --project=. scripts/reader_policy.jl .policy/conformance/reader-policy

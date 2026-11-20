@@ -948,6 +948,7 @@ function _parse_document_start!(p::_YParser)
     end
     if !_check_token(p.s, :stream_end)
         tok = _peek_token(p.s)
+        _perr(p, "YAML directives and document-start markers are forbidden (R12)", tok)
         _process_directives!(p)
         _check_token(p.s, :document_start) ||
             _perr(p, "expected '---' after the directives", _peek_token(p.s))

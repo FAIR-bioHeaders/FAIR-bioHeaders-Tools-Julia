@@ -160,7 +160,7 @@ end
 
 const RECEIPT_KEYS = [
     "conformanceSuiteUsed", "suiteVectors", "vectorsDecided", "vectorsPassed",
-    "vectorsFailed", "vectorsUndecided", "compressedVectorsDecided",
+    "vectorsFailed", "vectorsUndecided", "historicalVectorsPassed", "policyDeltaVectors", "policyDeltaVectorsPassed", "compressedVectorsDecided",
     "jsonldUndecided", "microdataUndecided", "schemaAuditFindings",
     "draftPinFindings",
 ]
@@ -535,11 +535,11 @@ end
         @test big["a"] == parse(BigInt, "123456789012345678901234567890")
         @test big["b"] == parse(BigInt, "-9223372036854775809")
         @test big["c"] === typemax(Int)
-        @test read_fhr_header("---\na: 1\n").metadata == Dict("a" => 1)
-        @test read_fhr_header("--- \na: 1\n...\n").metadata == Dict("a" => 1)
-        @test read_fhr_header("%YAML 1.1\n---\na: 1\n").metadata == Dict("a" => 1)
-        @test read_fhr_header("%YAML 1.2\n---\na: 1\n").metadata == Dict("a" => 1)
-        @test read_fhr_header("%TAG ! tag:example.com,2000:\n---\na: 1\n").metadata == Dict("a" => 1)
+        @test_throws HeaderError read_fhr_header("---\na: 1\n") # adopted D10/R12
+        @test_throws HeaderError read_fhr_header("--- \na: 1\n...\n") # adopted D10/R12
+        @test_throws HeaderError read_fhr_header("%YAML 1.1\n---\na: 1\n") # adopted D10/R12
+        @test_throws HeaderError read_fhr_header("%YAML 1.2\n---\na: 1\n") # adopted D10/R12
+        @test_throws HeaderError read_fhr_header("%TAG ! tag:example.com,2000:\n---\na: 1\n") # adopted D10/R12
         @test_throws HeaderError read_fhr_header("%TAG ! tag:example.com,2000:\n---\na: !x 1\n")  # used: a tag
         @test read_fhr_header("? a\n: 1\n").metadata == Dict("a" => 1)          # explicit key
         @test read_fhr_header("? a\n").metadata == Dict("a" => nothing)
@@ -1009,6 +1009,13 @@ end
         STATE["suiteVectors"] = length(outcomes)
         STATE["vectorsDecided"] = count(o -> o.decided, outcomes)
         STATE["vectorsPassed"] = sum(o -> o.decided && o.passed, outcomes)
+        STATE["historicalVectorsPassed"] = count(o -> o.decided && o.passed && isempty(o.policy_delta),outcomes)
+        STATE["policyDeltaVectors"] = count(o -> !isempty(o.policy_delta),outcomes)
+        STATE["policyDeltaVectorsPassed"] = count(o -> o.decided && o.passed && !isempty(o.policy_delta),outcomes)
+        @test STATE["historicalVectorsPassed"] == 159
+        @test STATE["policyDeltaVectors"] == 69
+        @test STATE["policyDeltaVectorsPassed"] == 69
+        @test all(o -> isempty(o.policy_delta) || ((o.historical_expected == "valid" && o.expected == "invalid") || startswith(o.policy_delta,"canonical predicate counterpart=")),outcomes)
         STATE["vectorsFailed"] = sum(o -> o.decided && !o.passed, outcomes)
         STATE["vectorsUndecided"] = count(o -> !o.decided, outcomes)
         STATE["compressedVectorsDecided"] = let m = JSON.parsefile(joinpath(suite, "manifest.json"))

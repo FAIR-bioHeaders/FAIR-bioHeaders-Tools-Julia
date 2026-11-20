@@ -171,12 +171,13 @@ function validate_record(metadata::AbstractDict, schema_value = nothing, schema_
         e isa UnsupportedContract && return [sprint(showerror, e)]
         rethrow()
     end
+    canonical = canonical_checksum_findings(metadata)
     text = JSON.json(_validatable(metadata))
     v = contract_validator(type, ref)
-    isvalid(v, text) && return String[]
+    isvalid(v, text) && return canonical
     collector = ResultsCollector(Detailed)
     evaluate(v, text, collector)
-    out = String[]
+    out = copy(canonical)
     for row in results(collector)
         row.is_match && continue
         push!(out, "$(type) $(ref) ($(basename(path))): $(row.message) at $(row.document_evaluation_location)")
@@ -314,4 +315,22 @@ function link_scheme_warnings(metadata::AbstractDict; drafts::Bool = false)
                    "(accepted: $(join(LINK_SCHEMES, ", ")); docs/FORMAT.md R14)")
     end
     return unique!(out)
+end
+
+# R4 applies to standard checksum slots independently of frozen schema regexes.
+# Arbitrary extension payloads are opaque and are never recursively inspected.
+function canonical_checksum_findings(metadata::AbstractDict)
+    out = String[]
+    function check(value, location)
+        value isa AbstractString && !occursin(CANONICAL_B64, value) &&
+            push!(out, "R4: $(location) is not canonical SHA-512/256 base64")
+    end
+    check(get(metadata, "checksum", nothing), "/checksum")
+    parents = get(metadata, "derivedFrom", nothing)
+    if parents isa AbstractVector
+        for (index, parent) in enumerate(parents)
+            parent isa AbstractDict && check(get(parent, "checksum", nothing), "/derivedFrom/$(index - 1)/checksum")
+        end
+    end
+    return out
 end

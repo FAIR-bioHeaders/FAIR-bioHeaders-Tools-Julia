@@ -17,15 +17,21 @@ runnable_formats() = collect(keys(FORMAT_KIND))
 struct VectorOutcome
     id::String
     format::String
-    expected::String
+    expected::String       # effective runtime expectation
+    historical_expected::String
+    policy_delta::String
     decided::Bool          # false when this implementation has no layer for the rule
     passed::Bool
     detail::String
 end
 
+# Existing callers retain the same unadjusted outcome constructor.
+VectorOutcome(id,format,expected,decided,passed,detail) =
+    VectorOutcome(id,format,expected,expected,"",decided,passed,detail)
+
 function Base.show(io::IO, o::VectorOutcome)
     print(io, o.decided ? (o.passed ? "PASS " : "FAIL ") : "SKIP ", o.id, " [", o.format,
-          "] expected ", o.expected, isempty(o.detail) ? "" : ": ", o.detail)
+          "] expected ", o.expected, isempty(o.policy_delta) ? "" : " (historical=" * o.historical_expected * "; policy=" * o.policy_delta * ")", isempty(o.detail) ? "" : ": ", o.detail)
 end
 
 """
@@ -45,7 +51,36 @@ function run_conformance(suite::AbstractString; formats = runnable_formats())
                                           "format $(fmt) is outside this runner"))
             continue
         end
-        push!(outcomes, run_vector(suite, v))
+        # D9: old manifest bytes remain immutable; new R4 expectation is tied
+        # to the exact historical bytes and explicitly labelled in the result.
+        crosswalk = JSON.parsefile(joinpath(@__DIR__, "..", "references", "retirement-crosswalk.json"))
+        retired = filter(x -> x["id"] == v["id"], crosswalk["cases"])
+        historical_expected = v["expected"]
+        policy_delta = ""
+        if !isempty(retired)
+            r = only(retired)
+            bytes2hex(SHA.sha256(read(joinpath(suite,v["file"])))) == r["oldSha256"] || error("retired source bytes differ: " * v["id"])
+            replacement = joinpath(@__DIR__,"..","references","canonical-counterparts",r["replacementFile"])
+            bytes2hex(SHA.sha256(read(replacement))) == r["replacementSha256"] || error("replacementSha256 mismatch: " * v["id"])
+            current = Dict{String,Any}(v)
+            current["file"] = abspath(replacement)
+            # Valid replacements change their self-checksum when canonicalizing a parent.
+            current["checksum"] = nothing
+            counterpart = run_vector(suite,current)
+            counterpart.decided && !counterpart.passed && error("canonical counterpart predicate failed: " * r["replacedBy"] * ": " * counterpart.detail)
+            if v["expected"] == "valid"
+                v = Dict{String,Any}(v)
+                v["expected"] = "invalid"
+                v["rule"] = "R4"
+                policy_delta = "D9-R4; independently passed canonical counterpart=" * r["replacedBy"]
+            else
+                v = current
+                policy_delta = "canonical predicate counterpart=" * r["replacedBy"]
+            end
+        end
+        result = run_vector(suite, v)
+        push!(outcomes, VectorOutcome(result.id,result.format,result.expected,
+            historical_expected,policy_delta,result.decided,result.passed,result.detail))
     end
     return outcomes
 end
@@ -74,6 +109,7 @@ SHA-256 or truncated SHA-512) show up as the R3 mismatch they cause, so for thos
 R3 mismatch counts too.
 """
 function breaks_rule(result, rule::AbstractString)
+    rule == "R17" && return any(m -> occursin("metadata is incompatible with", m), result.errors)
     rule in CONTRACT_RULES && return any(is_contract_finding, result.errors)
     any(m -> reports_rule(m, rule), result.errors) && return true
     rule in ("R1", "R4") && return any(m -> reports_rule(m, "R3"), result.errors)
@@ -132,7 +168,7 @@ end
 "The FORMAT.md and per-type rules this implementation can decide. Anything else is
 reported as undecided rather than passed."
 implemented_rules() = Set(["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R10", "R11", "R12", "R13",
-                           "R14", "R15", "P1", "P2", "G1", "G2", "G3", "V1", "V2", "V3", "V4", "V5", "V6"])
+                           "R14", "R15", "R17", "P1", "P2", "G1", "G2", "G3", "V1", "V2", "V3", "V4", "V5", "V6"])
 
 "JSON equality as the vectors define it: numbers compare by value, types never convert.
 `true` is not the number 1, so booleans are told apart before numbers."
