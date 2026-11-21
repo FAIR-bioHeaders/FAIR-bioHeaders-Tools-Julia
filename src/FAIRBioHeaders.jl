@@ -23,10 +23,12 @@ What is native here and what is delegated:
   contracts. `JSONSchema.jl` is not used: it silently ignores `format`, `minContains`,
   `maxContains` and `\$ref` siblings, and falsely rejects a legal FHGFF3 genome link.
 
-FHT and FHGM have no released contract (rule V7 keeps a draft out of every release form),
-so by default this package recognizes neither: no `schemaVersion`, w3id URL, registry row
-or support claim exists for either, and a citation of either falls to rule V5 like any
-other value. The explicit rule-V7 draft lane (`drafts = true` per call, `src/drafts.jl`)
+This consumer keeps FHT/FHGM in its opt-in development lane, with pins deliberately
+refreshed on 2026-11-20. The family has published
+FHT 1.0 in specification v0.7.0 and native FHGM model contract 0.1 in v0.8.0; FHGM is
+not a header type. This build does not adopt those released forms: its own registry
+has no released entry for either, and their citations remain subject to its existing
+selection rules. The explicit rule-V7 draft lane (`drafts = true` per call, `src/drafts.jl`)
 is opt-in and never the default: it reads the *pinned* draft bytes vendored under
 `drafts/` (re-digested against `drafts/provenance.json` on every load), warns on every
 record read through it, and reports the draft suites separately from the shared 291

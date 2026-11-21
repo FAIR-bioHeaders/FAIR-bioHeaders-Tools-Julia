@@ -172,6 +172,9 @@ function validate_record(metadata::AbstractDict, schema_value = nothing, schema_
         rethrow()
     end
     canonical = canonical_checksum_findings(metadata)
+    if type == "FHT" && ref == "draft"
+        append!(canonical, _fht_completeness_findings(metadata))
+    end
     text = JSON.json(_validatable(metadata))
     v = contract_validator(type, ref)
     isvalid(v, text) && return canonical
@@ -184,6 +187,24 @@ function validate_record(metadata::AbstractDict, schema_value = nothing, schema_
     end
     isempty(out) && push!(out, "$(type) $(ref) ($(basename(path))): the record does not conform")
     return out
+end
+
+# FHT C1 cross-field arithmetic is defined by the pinned owning contract prose;
+# standard JSON Schema cannot express this sum. Missing/ill-typed counts are left
+# to schema validation. Integral floats have JSON Schema integer semantics, while
+# Bool (an Integer subtype in Julia) is never a count. BigInt avoids wraparound.
+function _fht_completeness_findings(metadata::AbstractDict)
+    counts = get(metadata, "completeness", nothing)
+    counts isa AbstractDict || return String[]
+    components = ("completeSingle", "completeDuplicated", "fragmented", "missing")
+    integer(x) = !(x isa Bool) && (x isa Integer ||
+                 (x isa AbstractFloat && isfinite(x) && isinteger(x)))
+    all(k -> haskey(counts, k) && integer(counts[k]), (components..., "total")) ||
+        return String[]
+    observed = sum(BigInt(counts[k]) for k in components)
+    total = BigInt(counts["total"])
+    observed == total && return String[]
+    return ["C1: completeness component counts must sum to total (sum $(observed), total $(total))"]
 end
 
 # A double-quoted YAML scalar may hold a lone surrogate (`"\\ud800"`): PyYAML reads it and

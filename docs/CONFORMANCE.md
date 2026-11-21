@@ -70,48 +70,69 @@ FHGFF3), uncompressed and compressed alike, on one host at one tag. That is the
 whole claim: it is not a family-parity claim (63 shared vectors are undecided here),
 and it says nothing about `bioheaders` writer behaviour, JSON-LD or microdata output.
 
-## Draft suites are separate evidence, not this ledger
+## Development suites are separate evidence, not this ledger
 
-The rule-V7 lane (docs/CAPABILITY-MATRIX.md) additionally runs the development
-suites of the two *draft* types — FHT-Specification `conformance/` (82 vectors,
-rules C1-C3) at the pinned suite commit, and FHGM-Specification
-`development/conformance/` (62 vectors, rules K1-K6/B1) at its pinned suite commit —
-in a separate, labelled CI job (`draft-lane`) and through a local script:
+The explicit rule-V7 lane reads development contracts and does not adopt the
+family's subsequently published FHT/native FHGM selection forms. The deliberate
+2026-11-20 PR19 CI repair pins FHT `fht.json` at last-touch `eb6c36d3` and its
+93-vector suite at `e6ba1c73`; FHGM's record contract and transport overlay remain
+unchanged, while its 92-vector suite is pinned at `e8e26d7c`. Full commits,
+SHA-256 and byte counts are in `drafts/provenance.json`. Source contents-API blobs
+were base64-decoded and cross-checked against content-addressed Git objects;
+JSON rendering or HTTP content-length was not used to measure source bytes.
 
 ```sh
-git clone https://github.com/FAIR-bioHeaders/FHT-Specification /tmp/fht && \
-  git -C /tmp/fht checkout --detach 86438f21c3a17a58334c97aed4955be1a2393522
-git clone https://github.com/FAIR-bioHeaders/FHGM-Specification /tmp/fhgm && \
-  git -C /tmp/fhgm checkout --detach 06176262f9824f26d974a15d8feeebde1fbeb0a8
+git clone https://github.com/FAIR-bioHeaders/FHT-Specification /tmp/fht
+git -C /tmp/fht checkout --detach e6ba1c737c9caddc53b99a4a107825d7a16a4765
+git clone https://github.com/FAIR-bioHeaders/FHGM-Specification /tmp/fhgm
+git -C /tmp/fhgm checkout --detach e8e26d7cb9024b83e474045291f56a46e57a1ecf
 julia --project=. scripts/draft_vectors.jl --fht /tmp/fht --fhgm /tmp/fhgm
 ```
 
-Each detached commit above is the pinned files' last-touch commit, verified 2026-11-18
-to resolve upstream and to carry the contract, overlay and manifest bytes whose
-digests `drafts/provenance.json` records (a clone at that commit reproduces every
-pinned digest byte-identically).
+Measured on Julia1.13.2: FHT **93 pass /0 fail /0 not-run**; FHGM
+**74 pass /0 fail /18 not-run of92**. The runner does not parse the GFF3 feature
+layer: cases naming K4 or explicitly requiring gene-row resolution remain
+not-run, including valid cases. Caller-supplied decoded gene IDs can enable K4
+through the API; this suite run does not claim feature parsing. A partial model
+pass never establishes a gene target or biological derivation.
 
-Both suites are pinned twice over — contract bytes and suite manifest, each by commit
-plus SHA-256 in `drafts/provenance.json` — and the runner refuses to score anything
-whose manifest digest differs from the pin (exit 2, nothing reported as passed).
-Measured locally on 2026-11-18 (Julia 1.13.2) at the round-13 re-pinned revisions:
-FHT **82/82 pass**; FHGM **51 pass, 0 fail, 11 not-run of 62** (exactly the suite's
-11 K4-citing vectors, 3 valid and 8 invalid; the split is this library's own —
-Julia declares K4 `not-supported-yet` and reports `pass / not-run` proportions that
-differ from the JavaScript and Java libraries). These are draft implementation
-observations, not adoption or release of contract expectations. Three limitations
-travel with these numbers and cannot be seen in a digest diff or a vector count:
-(1) the pinned FHGM contract includes FHGM#29's tighter text, link and deposit checks,
-and this build enforces NFC-unique model identifiers. The upstream full model-layer
-requirements also include a root-level gene target under K4, which this Julia lane
-does not check; a passing Julia model verdict does not establish that target;
-(2) **K4 abstention is unresolved upstream** (FHGM#22/#27/#28, FAIR-bioHeaders-Specification#241
-open; JS#11 documents the unfalsifiable-`pass` shape) — the 51/0/11 is an honest hole,
-not a settled semantics; (3) **4 FHT vectors are `candidate-unreviewed`** promotion
-candidates, scored as stated by the suite and not presented as reviewed.
-Before the native corrections the new suite found two FHGM
-failures: `carrier-cites-raw-main` and `model-ids-equal-under-nfc`. The earlier
-2026-11-15 pins observed FHT 72/72 and FHGM 35/0/8-of-43; their historical
-measurements remain in commit `cfbab3d8ee028734f521ae0f0252629a246b0cbd`.
-These numbers never enter the 291/228/63 released ledger and convey no released
-FHT/FHGM support. Rule V7, adoption and publication gates stay unchanged.
+The refreshed FHT suite exposed two invalid BUSCO count sums accepted by the
+previous reader. The C1 check now compares all four component counts with total
+when all five are supplied as integers, including integral JSON numbers such as
+2.0; it excludes booleans, leaves absent/ill-typed counts to schema validation,
+and uses exact arithmetic without machine-integer overflow. This predicate
+applies only to explicitly selected FHT development records. The four earlier
+FHT promotion candidates have an owning `expectationReviews` disposition
+`accepted-file-identity-only` (D3, 2026-11-19); that proves exact parent-file
+identity, not biological derivation. Consumer test success is not their review.
+
+Both contract and suite pins are enforced independently; a mismatched manifest
+refuses scoring. One-byte and missing-path controls remain. The live-main
+freshness report remains advisory, never an automatic refresh or an acceptance
+gate. No development vector enters the frozen291/228/63 ledger. Historical
+2026-11-18 measurements (FHT82/82, FHGM51/0/11-of62) and prior pins remain in
+parent `d5aa9a5f82d744178dfa1ddeb6ede2bc0925a606`.
+
+## Retired predicate accounting (2026-11-19)
+
+What "the historical corpus is preserved" means concretely for the D9
+canonical-parent retirements (moved verbatim in substance from the README,
+restructured for readers; no numbers changed):
+
+* The immutable historical payload is checked against its crosswalk digest, and
+  every native canonical counterpart is checked against its replacement digest,
+  before either is evaluated — bytes that do not match their record are never
+  scored.
+* The **39 retired invalid** native cases execute their canonical counterpart
+  for the original predicate: the rejection is re-proved on the replacement
+  bytes, not inherited.
+* The **30 historical valid** cases retain the explicit D9/R4 rejection check
+  *and* separately require the canonical counterpart to validate; both
+  directions are asserted.
+* Totals distinguished: **159** original unchanged predicates, **39** canonical
+  invalid predicates and **30** old R4 checks, with **69** canonical counterpart
+  predicates independently checked alongside them.
+* The **9** crosswalk cases that live in JSON-LD/microdata serializations
+  remain outside native coverage — this package reads header bytes, not HTML
+  metadata or JSON-LD documents.
+

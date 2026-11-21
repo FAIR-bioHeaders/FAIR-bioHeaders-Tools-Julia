@@ -90,6 +90,11 @@ reads the FEXTRA/BC subfield and the empty BGZF terminator as ordinary gzip), sk
 padding after a member as Python's `gzip` does. A corrupt stream raises
 `HeaderError("R1", ...)` naming the underlying failure: truncated or mangled compressed
 input is a byte-layer error, never a silent empty result.
+
+This helper materializes the entire decompressed result and has no output-size cap.
+Use it only when the caller trusts the input's decompressed size to fit memory;
+compressed file size alone does not establish that. Use [`verify_file`](@ref)
+instead for streaming verification of large or untrusted inputs.
 """
 function decompress_gzip(data::AbstractVector{UInt8})
     is_gzip(data) || throw(HeaderError("R1", "the data does not start with the gzip magic", 1))
@@ -105,7 +110,10 @@ end
 
 The bytes rule R1 hashes: the file's content, transparently decompressed when it carries the
 gzip magic. Uncompressed files are returned byte-for-byte as stored. This reads the whole
-file into memory; [`verify_file`](@ref) streams instead.
+file into memory, without a decompressed-size cap. Use it only for inputs whose
+decompressed size the caller trusts to fit memory; a small compressed file may
+expand substantially. [`verify_file`](@ref) streams instead and is the preferred
+verification path for large or untrusted inputs.
 """
 function read_file_bytes(path::AbstractString)
     raw = read(path)

@@ -830,6 +830,34 @@ end
         rm(path)
     end
 
+    @testset "FHT C1 completeness arithmetic" begin
+        meta = ["schema: $FHT_CITATION", "schemaVersion: '1.0'",
+                "transcriptome: Arithmetic control", "assemblyType: de novo",
+                "taxon:", "  name: Homo sapiens", "version: 1.0.0",
+                "metadataAuthor:", "- name: Test author", "dateCreated: '2026-01-01'"]
+        text, _ = build_file(meta, ">tr1\nACGU\n")
+        md = read_fhr_file(Vector{UInt8}(codeunits(text)), "fasta").metadata
+        md["completeness"] = Dict{String,Any}("lineageDataset" => "insecta_odb10", "completeSingle" => 2,
+            "completeDuplicated" => 1, "fragmented" => 1, "missing" => 0, "total" => 4)
+        @test isempty(validate_record(md; drafts = true))
+        for total in (3, 5)
+            md["completeness"]["total"] = total
+            @test any(occursin("C1: completeness", e) for e in validate_record(md; drafts = true))
+        end
+        md["completeness"]["total"] = 4.0
+        @test isempty(validate_record(md; drafts = true))
+        # Optional partial counts are not zero-filled or given invented sums.
+        delete!(md["completeness"], "missing")
+        md["completeness"]["total"] = 99
+        partial = validate_record(md; drafts = true)
+        @test !isempty(partial) # requiredness remains the schema's decision
+        @test !any(occursin("C1: completeness", e) for e in partial)
+        # A wrapping machine-integer sum would incorrectly equal zero here.
+        md["completeness"] = Dict{String,Any}("lineageDataset" => "insecta_odb10", "completeSingle" => typemax(Int),
+            "completeDuplicated" => typemax(Int), "fragmented" => 2, "missing" => 0, "total" => 0)
+        @test any(occursin("C1: completeness", e) for e in validate_record(md; drafts = true))
+    end
+
     @testset "suite pin enforced by the runner's guard" begin
         # The real registry states complete suite pins for both drafts.
         for t in draft_types()
@@ -838,7 +866,7 @@ end
             @test occursin(r"\A[0-9a-f]{64}\z", pin.sha256)
             @test occursin(r"\A[0-9a-f]{40}\z", pin.commit)
         end
-        @test draft_suite_pin("FHT").vectors == 82 && draft_suite_pin("FHGM").vectors == 62
+        @test draft_suite_pin("FHT").vectors == 93 && draft_suite_pin("FHGM").vectors == 92
         # The guard, exercised both ways on synthetic pins and manifests: verified,
         # drift on one byte (byte-verified mutation), missing manifest, escaping path.
         good = (type = "CTRL", repository = "x", stated = true, partial = false,
@@ -902,6 +930,18 @@ end
         @test any(occursin("unreleased draft", w) for w in v.warnings)
         @test v.rules["K4"] == "not-supported-yet"
         @test v.contract["commit"] == draft_entry("FHGM").commit
+        @test check_fhgm_models(base; gene_ids=["FBgn0000001"]).rules["K4"] == "pass"
+        @test check_fhgm_models(base; gene_ids=["FBgn0000001", "FBgn0000001"]).rules["K4"] == "reject"
+        @test check_fhgm_models(base; gene_ids=String[]).rules["K4"] == "reject"
+        @test_throws ArgumentError check_fhgm_models(base; gene_ids=[1])
+        for id in ("gene+1", "gene\\n", "gene%3A1")
+            literal = deepcopy(base)
+            literal["x-fhgm-models"][1]["featureId"] = id
+            @test check_fhgm_models(literal; gene_ids=[id]).rules["K4"] == "pass"
+        end
+        encoded = deepcopy(base)
+        encoded["x-fhgm-models"][1]["featureId"] = "gene%3A1"
+        @test check_fhgm_models(encoded; gene_ids=["gene:1"]).rules["K4"] == "reject"
         dup = deepcopy(base); push!(dup["x-fhgm-models"], deepcopy(base["x-fhgm-models"][1]))
         v2 = check_fhgm_models(dup)
         @test !v2.valid && v2.rules["K3"] == "reject" && any(occursin("Ambiguous model ID", e2) for e2 in v2.errors)
